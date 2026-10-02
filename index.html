@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#070a0e" />
-    <meta name="description" content="Travel through 13.8 billion years of cosmic history. An interactive WebGL sky using 42,072 Tycho-2 stars, cosmic expansion, and the cooling glow of the early universe." />
+    <meta name="description" content="Travel through 13.8 billion years of cosmic history. An interactive WebGL sky using 120,530 Tycho-2 stars, cosmic expansion, and the cooling glow of the early universe." />
     <title>Sky — a journey through cosmic time</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23070a0e'/%3E%3Cpath d='M32 8L37 27L56 32L37 37L32 56L27 37L8 32L27 27Z' fill='%23bce5e2'/%3E%3C/svg%3E" />
   </head>
@@ -15,7 +15,7 @@
       <a class="wordmark" href="./" aria-label="Sky home"><span class="star-mark">✧</span> SKY <span class="wordmark-sub">COSMIC OBSERVATORY</span></a>
       <nav aria-label="App tools">
         <button id="reset" class="quiet" title="Reset viewing direction">Reset view <span>↺</span></button>
-        <button id="about" class="quiet">The model <span>↗</span></button>
+        <button id="about" class="quiet">Model & sources <span>↗</span></button>
         <a class="source-link" href="https://github.com/jvierine/sky" target="_blank" rel="noopener">Source <span>↗</span></a>
         <button id="fullscreen" class="icon-button" aria-label="Toggle fullscreen" title="Fullscreen">⛶</button>
       </nav>
@@ -25,7 +25,7 @@
         <p class="eyebrow"><span class="live-dot"></span> A JOURNEY THROUGH COSMIC TIME</p>
         <h1 id="epoch-title">The sky we know.</h1>
         <p id="epoch-description" class="description">A familiar sky, at the far end of a very long story.</p>
-        <p class="model-label">Tycho-2 template · first-order visual approximation</p>
+        <p id="model-label" class="model-label">WMAP observations → schematic structure formation</p>
       </section>
       <section class="readouts" aria-label="Cosmic conditions">
         <div><span class="readout-label">AGE OF THE UNIVERSE</span><strong id="age">13.8 <small>billion years</small></strong></div>
@@ -34,11 +34,19 @@
       </section>
       <div class="view-tools">
         <div class="view-caption"><span class="crosshair">＋</span><span>DRAG TO EXPLORE <span class="separator">/</span> SCROLL TO ZOOM</span><span id="fov">80°</span></div>
+        <div class="mode-switch" role="group" aria-label="View mode"><button id="view-space" aria-pressed="true">3D expansion</button><button id="view-sky" aria-pressed="false">Sky</button></div>
         <div class="exposure-control"><label for="exposure">EXPOSURE</label><input id="exposure" type="range" min="-3" max="3" step="0.1" value="0" /><output id="exposure-value" for="exposure">0 EV</output></div>
       </div>
+      <div id="cmb-legend" class="cmb-legend"><span>WMAP 9-YEAR ILC · ΔT <span class="legend-unit">µK</span></span><div class="colour-bar"></div><div class="legend-ticks"><span>−200</span><span>0</span><span>+200</span></div><small>Microwave temperature · enhanced false colour</small></div>
       <section class="timeline" aria-label="Cosmic timeline">
         <div class="timeline-heading"><div><span class="eyebrow">TIME MACHINE</span><p>Every sky has a beginning.</p></div><div class="play-tools"><span id="epoch-index">06 / 06</span><button id="play" class="play-button" aria-label="Play journey">▶ <span>Play journey</span></button></div></div>
-        <div class="timeline-track"><input id="time" type="range" min="0" max="1000" step="1" value="1000" aria-label="Age of the universe" /><div class="track-labels"><span>380,000 YEARS</span><span>LOGARITHMIC TIME</span><span id="today-age">13.8 BILLION YEARS</span></div></div>
+        <div class="timeline-track">
+          <div class="axis-caption"><label for="scale-factor">SCALE FACTOR <i>a</i></label><output id="slider-scale" for="scale-factor">a = 1.000</output></div>
+          <div id="scale-axis" class="axis-ticks primary-axis" aria-hidden="true"></div>
+          <input id="scale-factor" type="range" min="0.00093" max="1" step="any" value="1" aria-label="Scale factor a" />
+          <div id="age-axis" class="axis-ticks secondary-axis" aria-label="Time after the Big Bang in Gyr"></div>
+          <div class="axis-caption secondary-caption"><span>TIME AFTER BIG BANG <span class="axis-unit">(Gyr)</span></span><span>ΛCDM</span></div>
+        </div>
         <div id="epochs" class="epoch-buttons" aria-label="Choose a cosmic epoch"></div>
         <div class="timeline-footer"><span id="catalog-status"><span class="status-dot"></span> Loading Tycho-2 catalogue…</span><span id="sky-state">Visible light · perspective view</span></div>
       </section>
@@ -46,19 +54,31 @@
     <dialog id="model-dialog">
       <div class="dialog-heading"><span class="eyebrow">BEHIND THE SKY</span><button id="close-model" class="icon-button" aria-label="Close model details">✕</button></div>
       <h2>A sky to think with.</h2>
-      <p>This is a first-order visual experiment, using today’s Tycho-2 sky as a template for earlier epochs. These are not the actual ancient positions or populations of the Milky Way’s stars.</p>
+      <p>This is a first-order visual experiment, using today’s Tycho-2 sky as a template for earlier epochs. The 3D view assigns illustrative depths to Tycho directions and adds 900 procedural galaxy tracers. These are not measured galaxy positions or the actual ancient populations of the Milky Way’s stars.</p>
       <div class="model-options">
+        <label><input id="cmb-map" type="checkbox" checked /> WMAP seed field & diffuse matter <small>Observed microwave anisotropies, enhanced in false colour. The transition to 3D clusters is illustrative.</small></label>
         <label><input id="population" type="checkbox" checked /> Evolve the stellar population <small>A schematic fade-in from 150–600 million years; no stars during the dark ages.</small></label>
         <label><input id="background" type="checkbox" checked /> Show the thermal background <small>A Planck spectrum cooling as T = 2.7255 / a, shown in visible light.</small></label>
         <label><input id="grid" type="checkbox" /> Celestial coordinate grid</label>
       </div>
       <h3>The expansion approximation</h3>
-      <p>Imagine a fixed set of sources moving with the expansion. Scale their mean separation by <em>a</em>, density by <em>a⁻³</em>, and flux by <em>a⁻²</em>. Isotropic scaling preserves angles, so the catalogue pattern stays fixed.</p>
+      <p>Imagine a fixed set of sources moving with the expansion. Scale their mean separation by <em>a</em>, density by <em>a⁻³</em>, and flux by <em>a⁻²</em>. After the formation morph, every 3D tracer follows <em>x(t) = a(t) x₀</em> with a fixed external camera, so separation is visible. Smooth transitions and playback animate that motion. The Sky view places the observer at the origin; isotropic scaling then preserves angles.</p>
       <dl class="model-stats"><div><dt>Mean separation / today</dt><dd id="distance-ratio">1.000</dd></div><div><dt>Density / today</dt><dd id="density-ratio">1.000</dd></div><div><dt>Flux per source / today</dt><dd id="flux-ratio">1.000</dd></div><div><dt>Cosmological redshift</dt><dd id="redshift">0</dd></div><div><dt>Background peak wavelength</dt><dd id="peak-wavelength">1.06 mm</dd></div></dl>
-      <p class="fine-print">Gravitationally bound stars do not follow cosmic expansion. This toy flux law omits stellar evolution, cosmological dimming, dust, and a true past light cone. Tycho V<sub>T</sub> magnitudes are measured; star colours are illustrative because this subset has no colour data. There are no stars before first light unless you turn off population evolution.</p>
+      <p class="fine-print">Gravitationally bound stars and galaxies do not follow cosmic expansion. This model expands all tracers together after the illustrative formation phase. The toy flux law omits stellar evolution, cosmological dimming, dust, and a true past light cone. Tycho V<sub>T</sub> magnitudes are measured; star colours are illustrative because this subset has no colour data. Coloured early points represent schematic matter, not stars.</p>
+      <h3>Observed seeds, illustrative evolution</h3>
+      <p>The coloured seed field is the observed WMAP nine-year ILC temperature map, in Galactic coordinates, reprojected into the viewing direction <a class="inline-cite" href="https://lambda.gsfc.nasa.gov/product/wmap/dr5/ilc_map_info.html" target="_blank" rel="noopener">[1]</a>. The display enhances ΔT over ±200 µK; these are microwave temperature differences, not visible colours or a direct matter-density measurement.</p>
+      <p>WMAP angular patches seed a repeatable 3D morph into diffuse matter, stellar tracers, and galaxy groups. The animation illustrates growth from primordial fluctuations <a class="inline-cite" href="https://arxiv.org/abs/1102.4638" target="_blank" rel="noopener">[4]</a>; it is not an N-body calculation, nor a reconstruction of which observed patch formed which galaxy. The shell-to-volume projection, cluster depths, collapse paths, and spiral glyphs are artistic choices.</p>
       <h3>Cosmology & catalogue</h3>
-      <p>A flat ΛCDM model: H₀ = 67.4 km/s/Mpc, Ω<sub>m</sub> = 0.315, Ω<sub>r</sub> = 0.000092. Cosmic age is integrated from the Friedmann equation, including radiation. The 42,072-star Tycho-2 V<sub>T</sub> &lt; 8 subset comes from WISC/AIDA, including both supplements.</p>
-      <div class="reference-links"><a href="https://www.cosmos.esa.int/web/hipparcos/catalogues" target="_blank" rel="noopener">ESA / Tycho catalogue ↗</a><a href="https://www.esa.int/Science_Exploration/Space_Science/Cosmic_eras" target="_blank" rel="noopener">ESA / Cosmic eras ↗</a><a href="https://www.esa.int/Science_Exploration/Space_Science/Planck/Why_the_microwave" target="_blank" rel="noopener">ESA / The cooling universe ↗</a></div>
+      <p>The expansion uses Planck 2018 base-ΛCDM values H₀ = 67.4 km/s/Mpc and Ω<sub>m</sub> = 0.315 <a class="inline-cite" href="https://arxiv.org/abs/1807.06209" target="_blank" rel="noopener">[2]</a>. The simplified flat model includes Ω<sub>r</sub> = 0.000092 and integrates the Friedmann equation to find cosmic age. The 120,530-star Tycho-2 V<sub>T</sub> &lt; 9 subset comes from WISC/AIDA, including both supplements <a class="inline-cite" href="https://archive.eso.org/ASTROM/TYC-2/docs/aa2000a.pdf" target="_blank" rel="noopener">[5]</a>.</p>
+      <h3 id="references">References & data</h3>
+      <ol class="references">
+        <li><a href="https://lambda.gsfc.nasa.gov/product/wmap/dr5/ilc_map_info.html" target="_blank" rel="noopener">NASA LAMBDA / WMAP nine-year ILC map.</a><small>Observed seed texture. 1° beam; the product description discusses residual foreground and small-scale uncertainty. Credit: NASA / WMAP Science Team / LAMBDA.</small></li>
+        <li><a href="https://doi.org/10.1051/0004-6361/201833910" target="_blank" rel="noopener">Planck Collaboration (2020), Planck 2018 results. VI. Cosmological parameters. A&A 641, A6.</a><small>Expansion parameters and the ΛCDM framework. <a href="https://arxiv.org/abs/1807.06209" target="_blank" rel="noopener">Open paper ↗</a></small></li>
+        <li><a href="https://arxiv.org/abs/1212.5225" target="_blank" rel="noopener">Bennett et al. (2013), Nine-Year WMAP Observations: Final Maps and Results. ApJS 208, 20.</a><small>WMAP temperature observations and final map products.</small></li>
+        <li><a href="https://doi.org/10.1146/annurev-astro-081710-102608" target="_blank" rel="noopener">Bromm & Yoshida (2011), The First Galaxies. ARA&A 49, 373–407.</a><small>Physical context for first stars and galaxy formation. This reference does not validate the app’s chosen interpolation. <a href="https://arxiv.org/abs/1102.4638" target="_blank" rel="noopener">Open paper ↗</a></small></li>
+        <li><a href="https://archive.eso.org/ASTROM/TYC-2/docs/aa2000a.pdf" target="_blank" rel="noopener">Høg et al. (2000), The Tycho-2 catalogue of the 2.5 million brightest stars. A&A 355, L27–L30.</a><small>Measured stellar directions and V<sub>T</sub> magnitudes. <a href="https://www.cosmos.esa.int/web/hipparcos/catalogues" target="_blank" rel="noopener">ESA catalogue ↗</a></small></li>
+        <li><a href="https://arxiv.org/abs/0911.1955" target="_blank" rel="noopener">Fixsen (2009), The Temperature of the Cosmic Microwave Background. ApJ 707, 916–920.</a><small>Present-day temperature, T₀ = 2.7255 K. <a href="https://www.esa.int/Science_Exploration/Space_Science/Planck/Why_the_microwave" target="_blank" rel="noopener">ESA / Planck: recombination and cooling ↗</a></small></li>
+      </ol>
       <a class="github-footer" href="https://github.com/jvierine/sky" target="_blank" rel="noopener">Made by Juha Vierinen · Explore the source ↗</a>
     </dialog>
     <div id="error" role="alert" hidden></div>

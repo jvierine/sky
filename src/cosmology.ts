@@ -32,6 +32,20 @@ export function scaleFactorAtAge(age: number): number {
   const fraction = (age - table[lo].years) / (table[hi].years - table[lo].years);
   return Math.max(MIN_A, table[lo].a + fraction * (table[hi].a - table[lo].a));
 }
+export function ageAtScaleFactor(a: number): number {
+  if (!Number.isFinite(a) || a <= 0 || a > 1) throw new RangeError('Scale factor must be finite and in (0, 1]');
+  if (a === 1) return TODAY_YEARS;
+  let lo = 0, hi = table.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (table[mid].a < a) lo = mid;
+    else hi = mid;
+  }
+  const fraction = (a - table[lo].a) / (table[hi].a - table[lo].a);
+  return table[lo].years + fraction * (table[hi].years - table[lo].years);
+}
+export const MIN_SCALE = scaleFactorAtAge(MIN_YEARS);
+export const scalePosition = (a: number) => (a - MIN_SCALE) / (1 - MIN_SCALE) * 100;
 export const ageFromSlider = (value: number) => MIN_YEARS * (TODAY_YEARS / MIN_YEARS) ** (Math.max(0, Math.min(1000, value)) / 1000);
 export const sliderFromAge = (age: number) => Math.log(age / MIN_YEARS) / Math.log(TODAY_YEARS / MIN_YEARS) * 1000;
 export const smoothstep = (lo: number, hi: number, x: number) => {
@@ -64,5 +78,5 @@ export const epochs = [
   { name: 'First stars', short: '300m years', age: 300e6, title: 'Darkness gives way.', description: 'The first stellar populations begin to illuminate the cosmos. Tycho stars trace a schematic emergence of starlight.' },
   { name: 'Reionization', short: '800m years', age: 800e6, title: 'Islands of light.', description: 'Young stars and galaxies reshape their surroundings. Our expanding-source approximation reveals a brighter, denser sky.' },
   { name: 'Cosmic noon', short: '3b years', age: 3e9, title: 'A universe in bloom.', description: 'Galaxies are vigorously forming stars. A smaller scale factor brings the model’s sources closer and brightens their light.' },
-  { name: 'Today', short: '13.8b years', age: TODAY_YEARS, title: 'The sky we know.', description: '42,072 catalogue stars. A 2.73 K background. The present-day sky is the starting point for our journey into the past.' },
+  { name: 'Today', short: '13.8b years', age: TODAY_YEARS, title: 'The sky we know.', description: '120,530 catalogue stars. A 2.73 K background. The present-day sky is the starting point for our journey into the past.' },
 ];

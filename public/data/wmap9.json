@@ -1,0 +1,23 @@
+{
+  "source": "https://lambda.gsfc.nasa.gov/data/map/dr5/dfp/ilc/wmap_ilc_9yr_v5.fits",
+  "product": "WMAP nine-year Internal Linear Combination, v5",
+  "credit": "NASA / WMAP Science Team / LAMBDA",
+  "reference": "https://lambda.gsfc.nasa.gov/product/wmap/dr5/ilc_map_info.html",
+  "sourceSha256": "4501090f824f9140e916339f9e8e490333f6ffe4257a6ee6a02526c8640099a9",
+  "inputNside": 512,
+  "inputOrdering": "NESTED",
+  "inputUnit": "mK, thermodynamic",
+  "nativeBeamDegrees": 1,
+  "coordinateSystem": "Galactic",
+  "projection": "equirectangular; longitude increasing left to right, north to south rows",
+  "width": 1024,
+  "height": 512,
+  "encoding": "WMAPCMB1 + uint32 LE width + uint32 LE height + uint8 temperature; microkelvin=(byte/255*2-1)*200",
+  "displayRangeMicrokelvin": [
+    -200.0,
+    200.0
+  ],
+  "unclippedRmsMicrokelvin": 69.38149807453908,
+  "quantizationMicrokelvin": 1.5686274509803921,
+  "processing": "HEALPix bilinear interpolation, clipping and quantization; no generated replacement anisotropies"
+}

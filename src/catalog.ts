@@ -19,7 +19,7 @@ export function parseCatalogue(buffer: ArrayBuffer): Catalogue {
   return { count, positions, magnitudes, colours };
 }
 export async function loadCatalogue(): Promise<Catalogue> {
-  const response = await fetch(`${import.meta.env.BASE_URL}data/tycho2_mag8.bin.gz`);
+  const response = await fetch(`${import.meta.env.BASE_URL}data/tycho2_mag9.bin.gz`);
   if (!response.ok) throw new Error(`Catalogue request failed (${response.status})`);
   const bytes = await response.arrayBuffer();
   // Some servers transparently decompress .gz files; support both forms.
