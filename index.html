@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070a0e" />
+    <meta name="description" content="Travel through 13.8 billion years of cosmic history. An interactive WebGL sky using 42,072 Tycho-2 stars, cosmic expansion, and the cooling glow of the early universe." />
+    <title>Sky — a journey through cosmic time</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23070a0e'/%3E%3Cpath d='M32 8L37 27L56 32L37 37L32 56L27 37L8 32L27 27Z' fill='%23bce5e2'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <canvas id="sky" aria-label="Interactive sky. Drag to look around; scroll or pinch to zoom." tabindex="0"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <header class="masthead">
+      <a class="wordmark" href="./" aria-label="Sky home"><span class="star-mark">✧</span> SKY <span class="wordmark-sub">COSMIC OBSERVATORY</span></a>
+      <nav aria-label="App tools">
+        <button id="reset" class="quiet" title="Reset viewing direction">Reset view <span>↺</span></button>
+        <button id="about" class="quiet">The model <span>↗</span></button>
+        <a class="source-link" href="https://github.com/jvierine/sky" target="_blank" rel="noopener">Source <span>↗</span></a>
+        <button id="fullscreen" class="icon-button" aria-label="Toggle fullscreen" title="Fullscreen">⛶</button>
+      </nav>
+    </header>
+    <main>
+      <section class="epoch-copy" aria-labelledby="epoch-title">
+        <p class="eyebrow"><span class="live-dot"></span> A JOURNEY THROUGH COSMIC TIME</p>
+        <h1 id="epoch-title">The sky we know.</h1>
+        <p id="epoch-description" class="description">A familiar sky, at the far end of a very long story.</p>
+        <p class="model-label">Tycho-2 template · first-order visual approximation</p>
+      </section>
+      <section class="readouts" aria-label="Cosmic conditions">
+        <div><span class="readout-label">AGE OF THE UNIVERSE</span><strong id="age">13.8 <small>billion years</small></strong></div>
+        <div><span class="readout-label">BACKGROUND TEMPERATURE</span><strong id="temperature">2.73 <small>K</small></strong></div>
+        <div><span class="readout-label">SCALE FACTOR</span><strong id="scale">1.000 <small>a</small></strong></div>
+      </section>
+      <div class="view-tools">
+        <div class="view-caption"><span class="crosshair">＋</span><span>DRAG TO EXPLORE <span class="separator">/</span> SCROLL TO ZOOM</span><span id="fov">80°</span></div>
+        <div class="exposure-control"><label for="exposure">EXPOSURE</label><input id="exposure" type="range" min="-3" max="3" step="0.1" value="0" /><output id="exposure-value" for="exposure">0 EV</output></div>
+      </div>
+      <section class="timeline" aria-label="Cosmic timeline">
+        <div class="timeline-heading"><div><span class="eyebrow">TIME MACHINE</span><p>Every sky has a beginning.</p></div><div class="play-tools"><span id="epoch-index">06 / 06</span><button id="play" class="play-button" aria-label="Play journey">▶ <span>Play journey</span></button></div></div>
+        <div class="timeline-track"><input id="time" type="range" min="0" max="1000" step="1" value="1000" aria-label="Age of the universe" /><div class="track-labels"><span>380,000 YEARS</span><span>LOGARITHMIC TIME</span><span id="today-age">13.8 BILLION YEARS</span></div></div>
+        <div id="epochs" class="epoch-buttons" aria-label="Choose a cosmic epoch"></div>
+        <div class="timeline-footer"><span id="catalog-status"><span class="status-dot"></span> Loading Tycho-2 catalogue…</span><span id="sky-state">Visible light · perspective view</span></div>
+      </section>
+    </main>
+    <dialog id="model-dialog">
+      <div class="dialog-heading"><span class="eyebrow">BEHIND THE SKY</span><button id="close-model" class="icon-button" aria-label="Close model details">✕</button></div>
+      <h2>A sky to think with.</h2>
+      <p>This is a first-order visual experiment, using today’s Tycho-2 sky as a template for earlier epochs. These are not the actual ancient positions or populations of the Milky Way’s stars.</p>
+      <div class="model-options">
+        <label><input id="population" type="checkbox" checked /> Evolve the stellar population <small>A schematic fade-in from 150–600 million years; no stars during the dark ages.</small></label>
+        <label><input id="background" type="checkbox" checked /> Show the thermal background <small>A Planck spectrum cooling as T = 2.7255 / a, shown in visible light.</small></label>
+        <label><input id="grid" type="checkbox" /> Celestial coordinate grid</label>
+      </div>
+      <h3>The expansion approximation</h3>
+      <p>Imagine a fixed set of sources moving with the expansion. Scale their mean separation by <em>a</em>, density by <em>a⁻³</em>, and flux by <em>a⁻²</em>. Isotropic scaling preserves angles, so the catalogue pattern stays fixed.</p>
+      <dl class="model-stats"><div><dt>Mean separation / today</dt><dd id="distance-ratio">1.000</dd></div><div><dt>Density / today</dt><dd id="density-ratio">1.000</dd></div><div><dt>Flux per source / today</dt><dd id="flux-ratio">1.000</dd></div><div><dt>Cosmological redshift</dt><dd id="redshift">0</dd></div><div><dt>Background peak wavelength</dt><dd id="peak-wavelength">1.06 mm</dd></div></dl>
+      <p class="fine-print">Gravitationally bound stars do not follow cosmic expansion. This toy flux law omits stellar evolution, cosmological dimming, dust, and a true past light cone. Tycho V<sub>T</sub> magnitudes are measured; star colours are illustrative because this subset has no colour data. There are no stars before first light unless you turn off population evolution.</p>
+      <h3>Cosmology & catalogue</h3>
+      <p>A flat ΛCDM model: H₀ = 67.4 km/s/Mpc, Ω<sub>m</sub> = 0.315, Ω<sub>r</sub> = 0.000092. Cosmic age is integrated from the Friedmann equation, including radiation. The 42,072-star Tycho-2 V<sub>T</sub> &lt; 8 subset comes from WISC/AIDA, including both supplements.</p>
+      <div class="reference-links"><a href="https://www.cosmos.esa.int/web/hipparcos/catalogues" target="_blank" rel="noopener">ESA / Tycho catalogue ↗</a><a href="https://www.esa.int/Science_Exploration/Space_Science/Cosmic_eras" target="_blank" rel="noopener">ESA / Cosmic eras ↗</a><a href="https://www.esa.int/Science_Exploration/Space_Science/Planck/Why_the_microwave" target="_blank" rel="noopener">ESA / The cooling universe ↗</a></div>
+      <a class="github-footer" href="https://github.com/jvierine/sky" target="_blank" rel="noopener">Made by Juha Vierinen · Explore the source ↗</a>
+    </dialog>
+    <div id="error" role="alert" hidden></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
