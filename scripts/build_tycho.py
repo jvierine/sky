@@ -13,9 +13,14 @@ import gzip
 import hashlib
 import json
 import math
+import argparse
 import struct
 import urllib.request
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--limit', type=int, default=9)
+args = parser.parse_args()
+limit = args.limit
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / '.cache-data' / 'tycho'
 BASE = 'https://archive.eso.org/ASTROM/TYC-2/data/'
@@ -41,7 +46,7 @@ for name, columns in [('catalog.dat', (24, 25, 19)),
                 ra, dec, vt = (float(fields[i].strip()) for i in columns)
             except (ValueError, IndexError):
                 continue
-            if not all(map(math.isfinite, (ra, dec, vt))) or vt >= 9 or not 0 <= ra <= 360 or not -90 <= dec <= 90:
+            if not all(map(math.isfinite, (ra, dec, vt))) or vt >= limit or not 0 <= ra <= 360 or not -90 <= dec <= 90:
                 continue
             key = f'{ra:.7f}:{dec:.7f}:{vt:.3f}'
             if key in seen:
@@ -55,13 +60,13 @@ for name, columns in [('catalog.dat', (24, 25, 19)),
                         inputRows=read, acceptedRows=accepted, duplicateRows=duplicates))
 stars.sort(key=lambda row: (row[2], row[0], row[1]))
 payload = b'WISCAT1\0' + struct.pack('<II', len(stars), 3) + b''.join(struct.pack('<fff', *row) for row in stars)
-output = ROOT / 'public/data/tycho2_mag9.bin.gz'
+output = ROOT / f'public/data/tycho2_mag{limit}.bin.gz'
 output.write_bytes(gzip.compress(payload, compresslevel=9, mtime=0))
-metadata = dict(stars=len(stars), maxMagnitudeExclusive=9,
-                selection='Tycho-2 main catalogue and both supplements, finite J2000 positions and VT < 9',
+metadata = dict(stars=len(stars), maxMagnitudeExclusive=limit,
+                selection=f'Tycho-2 main catalogue and both supplements, finite J2000 positions and VT < {limit}',
                 format='WISCAT1: 8-byte magic, uint32 count, uint32 stride=3; Float32 little-endian RA hours, Dec degrees, VT magnitude',
                 sources=sources, uncompressedBytes=len(payload), compressedBytes=output.stat().st_size,
                 generatedAtUtc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 generator='scripts/build_tycho.py; adapted from WISC/AIDA tools/build_tycho2_catalog.js (CC BY 4.0)')
-output.with_name('tycho2_mag9.json').write_text(json.dumps(metadata, indent=2) + '\n')
+output.with_name(f'tycho2_mag{limit}.json').write_text(json.dumps(metadata, indent=2) + '\n')
 print(f'Wrote {len(stars):,} observed stars; {output.stat().st_size:,} compressed bytes')

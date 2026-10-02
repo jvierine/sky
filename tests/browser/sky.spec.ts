@@ -2,13 +2,12 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { parseCatalogue } from '../../src/catalog';
-import { parseCmb } from '../../src/cmb';
-import { buildSkyEvolution, evolvedDirection } from '../../src/sky-evolution';
+import { buildSkyEvolution, particlePosition } from '../../src/sky-evolution';
 async function epoch(page: Page, label: string) {
   if(await page.locator('#epoch-menu').getAttribute('aria-expanded')!=='true') await page.getByRole('button',{name:'Epochs ▴'}).click();
   await page.getByRole('button',{name:label.replace(/^0\d /,'')}).click();
 }
-test('dark ages are dark with default settings and stars move apart on the sky', async ({page})=>{
+test('dark ages are dark and GPU sky follows physical particle trajectories', async ({page})=>{
   await page.goto('./');
   await expect(page.locator('body')).toHaveAttribute('data-ready','true');
   await epoch(page,'02 Dark ages');
@@ -23,32 +22,25 @@ test('dark ages are dark with default settings and stars move apart on the sky',
   await expect(page.locator('#cmb-legend')).toBeHidden();
   await page.screenshot({path:'test-results/dark-ages-desktop.png'});
   const buffer=(path:string)=>{const b=gunzipSync(readFileSync(path));return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength);};
-  const catalogue=parseCatalogue(buffer('public/data/tycho2_mag9.bin.gz'));
-  const sky=buildSkyEvolution(catalogue,parseCmb(buffer('public/data/wmap9.bin.gz')));
+  const catalogue=parseCatalogue(buffer('public/data/tycho2_mag10.bin.gz'));
+  const sky=buildSkyEvolution(catalogue);
   const w=1440,h=900;
   const project=(v:ArrayLike<number>)=>{
     const x=v[0],y=v[1],z=v[2],yaw=1.4,pitch=.12,tan=Math.tan(40*Math.PI/180);
     const depth=x*Math.cos(pitch)*Math.cos(yaw)+y*Math.sin(pitch)+z*Math.cos(pitch)*Math.sin(yaw);
     return {x:w/2+(-x*Math.sin(yaw)+z*Math.cos(yaw))*h/(2*tan*depth),y:h/2+(-x*Math.sin(pitch)*Math.cos(yaw)+y*Math.cos(pitch)-z*Math.sin(pitch)*Math.sin(yaw))*h/(2*tan*depth),depth};
   };
-  const groups=new Map<number,number[]>();
-  let pair:number[]=[];
-  for(let i=0;i<catalogue.count && catalogue.magnitudes[i]<5;i++) {
+  let star=-1;
+  for(let i=0;i<catalogue.count && catalogue.magnitudes[i]<4;i++) {
     const p=project(catalogue.positions.subarray(i*3,i*3+3));
-    if(sky.exponents[sky.patches[i]]<0.9||p.depth<.7||p.x<30||p.x>w-30||p.y<30||p.y>h-30)continue;
-    const members=groups.get(sky.patches[i])??[];
-    for(const other of members) {
-      const q=project(catalogue.positions.subarray(other*3,other*3+3));
-      if(Math.hypot(p.x-q.x,p.y-q.y)>15){pair=[other,i];break;}
-    }
-    if(pair.length)break;
-    members.push(i);groups.set(sky.patches[i],members);
+    const q=project(particlePosition(catalogue.positions.subarray(i*3,i*3+3),sky.motion.subarray(i*4,i*4+4),.2));
+    if(p.depth>0 && q.depth>0 && [p,q].every(v=>v.x>30&&v.x<w-30&&v.y>30&&v.y<h-30) && Math.hypot(p.x-q.x,p.y-q.y)>20){star=i;break;}
   }
-  expect(pair).toHaveLength(2);
-  const actualSeparation=async(a:number)=>{
+  expect(star).toBeGreaterThanOrEqual(0);
+  const actualPosition=async(a:number,moving=true)=>{
     await page.getByRole('slider',{name:'Scale factor a'}).fill(String(a));
     await expect(page.locator('body')).toHaveAttribute('data-settled','true');
-    const expected=pair.map(i=>project(evolvedDirection(sky.seeds.subarray(i*3,i*3+3),catalogue.positions.subarray(i*3,i*3+3),a,sky.exponents[sky.patches[i]])));
+    const expected=[project(particlePosition(catalogue.positions.subarray(star*3,star*3+3),sky.motion.subarray(star*4,star*4+4),a,moving))];
     const peaks=await page.locator('#sky').evaluate((canvas:HTMLCanvasElement,points:{x:number,y:number}[])=>{
       const gl=canvas.getContext('webgl')!,w=gl.drawingBufferWidth,h=gl.drawingBufferHeight,pixels=new Uint8Array(w*h*4);
       gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
@@ -62,10 +54,16 @@ test('dark ages are dark with default settings and stars move apart on the sky',
       });
     },expected);
     expect(peaks.every(p=>p.brightness>100)).toBe(true);
-    return Math.hypot(peaks[0].x-peaks[1].x,peaks[0].y-peaks[1].y);
+    expect(Math.hypot(peaks[0].x-expected[0].x,peaks[0].y-expected[0].y)).toBeLessThan(4);
+    return peaks[0];
   };
-  const early=await actualSeparation(.2),today=await actualSeparation(1);
-  expect(today).toBeGreaterThan(early*2);
+  const early=await actualPosition(.2),today=await actualPosition(1);
+  expect(Math.hypot(early.x-today.x,early.y-today.y)).toBeGreaterThan(15);
+  await page.getByRole('button',{name:'Model & sources'}).click();
+  await page.locator('#motion').uncheck();
+  await page.getByRole('button',{name:'Close model details'}).click();
+  const uniform=await actualPosition(.2,false);
+  expect(Math.hypot(uniform.x-today.x,uniform.y-today.y)).toBeLessThan(4);
   await expect(page.locator('#fov')).toHaveText('80°');
   await page.screenshot({path:'test-results/minimal-sky-desktop.png'});
 });
@@ -123,7 +121,7 @@ test('default and Today show actual Tycho positions with no synthetic galaxy dra
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   const returned=await checkPositions();
   expect(returned.matched).toBe(initial.matched);
-  expect(new Set(returned.draws)).toEqual(new Set([120530]));
+  expect(returned.draws.at(-1)).toBe(120530);
 });
 test('catalogue, GPU, epochs, and viewing controls work', async ({ page }) => {
   const errors: string[] = [];
@@ -206,7 +204,7 @@ test('scale-factor slider and the secondary Gyr axis agree with the model', asyn
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   await page.screenshot({path:'test-results/scale-factor-desktop.png'});
 });
-test('observed CMB morphs smoothly into expanding structure, with scientific citations', async ({ page }) => {
+test('WMAP overlay is optional and the same particles expand in the external view', async ({ page }) => {
   await page.goto('./');
   await expect(page.locator('body')).toHaveAttribute('data-ready','true');
   const signature=()=>page.locator('#sky').evaluate((canvas:HTMLCanvasElement)=>{
@@ -225,6 +223,7 @@ test('observed CMB morphs smoothly into expanding structure, with scientific cit
   await epoch(page,'01 Recombination');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   await page.getByRole('button',{name:'Model & sources'}).click();
+  await page.locator('#cmb-map').check();
   await page.getByRole('button',{name:'External 3D model',exact:true}).click();
   await page.getByRole('button',{name:'Close model details'}).click();
   const cmb=await signature();
@@ -241,7 +240,7 @@ test('observed CMB morphs smoothly into expanding structure, with scientific cit
   await page.getByRole('slider',{name:'Scale factor a'}).fill('0.8');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   const expanded=await signature();
-  expect(expanded.radius).toBeGreaterThan(compact.radius*1.8);
+  expect(expanded.radius).toBeGreaterThan(compact.radius*1.2);
   expect(expanded.bright).toBeGreaterThan(1000);
   expect(expanded.error).toBe(0);
   await epoch(page,'06 Today');
@@ -250,7 +249,7 @@ test('observed CMB morphs smoothly into expanding structure, with scientific cit
   await page.screenshot({path:'test-results/tycho-endpoint-desktop.png'});
   await page.getByRole('button',{name:'Model & sources'}).click();
   const references=page.locator('.references > li');
-  await expect(references).toHaveCount(6);
+  await expect(references).toHaveCount(8);
   await expect(references.nth(1)).toContainText('Planck Collaboration');
   await expect(references.nth(1).locator('a').first()).toHaveAttribute('href','https://doi.org/10.1051/0004-6361/201833910');
   await expect(references.first().locator('a')).toHaveAttribute('href',/lambda.gsfc.nasa.gov/);
@@ -306,7 +305,7 @@ test('graphics context restores and catalogue failures are explained', async ({ 
   await expect(page.locator('#error')).toContainText('graphics connection');
   await expect(page.locator('body')).toHaveAttribute('data-ready','true');
   await expect(page.locator('#error')).toBeHidden();
-  await page.route('**/tycho2_mag9.bin.gz',route=>route.fulfill({status:503,body:'unavailable'}));
+  await page.route('**/tycho2_mag10.bin.gz',route=>route.fulfill({status:503,body:'unavailable'}));
   await page.reload();
   await expect(page.locator('#error')).toContainText('Catalogue request failed (503)');
 });

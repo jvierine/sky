@@ -5,8 +5,7 @@ import { gunzipSync } from 'node:zlib';
 import { ageAtScaleFactor, ageFromSlider, conditions, MIN_SCALE, MIN_YEARS, scaleFactorAtAge, scalePosition, sliderFromAge, thermalRGB, TODAY_YEARS } from '../src/cosmology.ts';
 import { parseCatalogue } from '../src/catalog.ts';
 import { parseCmb, sampleCmb } from '../src/cmb.ts';
-import { buildStructure } from '../src/structure.ts';
-import { angularSpread, buildSkyEvolution, evolvedDirection, PATCH_COUNT } from '../src/sky-evolution.ts';
+import { buildSkyEvolution, driftTime, particlePosition, particleFluxRatio, KM_S_TO_PC_GYR } from '../src/sky-evolution.ts';
 
 test('Friedmann integration agrees with present age and recombination', () => {
   assert.ok(TODAY_YEARS > 13.7e9 && TODAY_YEARS < 13.9e9, String(TODAY_YEARS));
@@ -62,7 +61,7 @@ test('actual AIDA catalogue is valid, includes bright stars, and lies on a unit 
   assert.throws(()=>parseCatalogue(new ArrayBuffer(0)),/header/);
   assert.throws(()=>parseCatalogue(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength-1)),/length/);
 });
-test('observed WMAP map has real anisotropy and seeds reproducible finite clusters', () => {
+test('observed WMAP map has real microwave anisotropy', () => {
   const data=gunzipSync(readFileSync(new URL('../public/data/wmap9.bin.gz',import.meta.url)));
   const map=parseCmb(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));
   assert.equal(map.width,1024);
@@ -73,45 +72,52 @@ test('observed WMAP map has real anisotropy and seeds reproducible finite cluste
   assert.ok(rms>40 && rms<100);
   const directions=[[1,0,0],[0,1,0],[0,0,1],[-1,0,0]];
   assert.ok(new Set(directions.map(direction=>sampleCmb(map,direction))).size>2);
-  const catalogue={count:4,positions:new Float32Array(directions.flat()),magnitudes:new Float32Array([1,2,3,4]),colours:new Float32Array(12)};
-  const first=buildStructure(catalogue,map),second=buildStructure(catalogue,map);
-  assert.equal(first.centres.length,32);
-  assert.deepEqual(first.targets,second.targets);
-  assert.ok(first.targets.every(Number.isFinite));
-  assert.ok(first.depths.every(n=>n>0 && n<6));
 });
-test('all-sky birth patches separate continuously and end at the exact Tycho vectors', () => {
-  const data=gunzipSync(readFileSync(new URL('../public/data/wmap9.bin.gz',import.meta.url)));
-  const cmb=parseCmb(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));
-  const raw=gunzipSync(readFileSync(new URL('../public/data/tycho2_mag9.bin.gz',import.meta.url)));
-  const catalogue=parseCatalogue(raw.buffer.slice(raw.byteOffset,raw.byteOffset+raw.byteLength));
-  const evolution=buildSkyEvolution(catalogue,cmb);
-  assert.equal(evolution.centres.length,PATCH_COUNT*3);
-  const occupancy=new Set(evolution.patches);
-  assert.ok(occupancy.size>PATCH_COUNT*0.9,'birth patches must surround the observer');
-  const pairs=new Map<number,number[]>();
-  for(let i=0;i<catalogue.count;i++){
-    const patch=evolution.patches[i],pair=pairs.get(patch)??[];
-    if(pair.length<2)pair.push(i);
-    pairs.set(patch,pair);
+test('force-free 3D particles obey expansion, conserved momentum and inverse-square flux', () => {
+  const direction=[.6,0,.8], motion=[0,0,0,500];
+  assert.ok(Math.abs(KM_S_TO_PC_GYR-1022.712)<.001);
+  for(const a of [MIN_SCALE,.05,.1,.2,.4,.8,1]) {
+    const position=particlePosition(direction,motion,a);
+    assert.ok(Math.abs(Math.hypot(...position)-500*a)<1e-9);
+    assert.ok(Math.abs(position[0]/position[2]-.75)<1e-12,'pure expansion preserves angles');
+    assert.ok(Math.abs(particleFluxRatio(direction,motion,a)-a**-2)<1e-5);
   }
-  const angle=(p:number[],q:number[])=>Math.atan2(Math.hypot(p[1]*q[2]-p[2]*q[1],p[2]*q[0]-p[0]*q[2],p[0]*q[1]-p[1]*q[0]),p.reduce((s,v,j)=>s+v*q[j],0));
-  for(const pair of pairs.values()) {
-    if(pair.length<2)continue;
-    let last=-1;
-    for(const a of [0.05,0.2,0.4,0.7,1]) {
-      const directions=pair.map(i=>evolvedDirection(evolution.seeds.subarray(i*3,i*3+3),catalogue.positions.subarray(i*3,i*3+3),a,evolution.exponents[evolution.patches[i]]));
-      const separation=angle(directions[0],directions[1]);
-      assert.ok(separation>=last-1e-5,'neighbouring stars must separate as a grows');
-      last=separation;
+  assert.equal(driftTime(1),0);
+  const moving=[1.2,-.4,.5,500];
+  // Independent finite-difference check of dx/dt=p/a² using the age integral.
+  for(const a of [.08,.2,.6,.9]) {
+    const step=1e-5;
+    const before=particlePosition(direction,moving,a-step).map(v=>v/(a-step));
+    const after=particlePosition(direction,moving,a+step).map(v=>v/(a+step));
+    const dt=(ageAtScaleFactor(a+step)-ageAtScaleFactor(a-step))/1e9;
+    for(let j=0;j<3;j++) {
+      const momentum=a*a*(after[j]-before[j])/dt;
+      assert.ok(Math.abs(momentum-moving[j])<.004,`canonical momentum: ${momentum}`);
     }
+    const distance=Math.hypot(...particlePosition(direction,moving,a));
+    assert.ok(Math.abs(particleFluxRatio(direction,moving,a)-(500/distance)**2)<1e-9);
   }
-  for(let i=0;i<catalogue.count;i+=131){
-    const final=catalogue.positions.subarray(i*3,i*3+3);
-    assert.deepEqual(evolvedDirection(evolution.seeds.subarray(i*3,i*3+3),final,1),Array.from(final));
-    const direction=evolvedDirection(evolution.seeds.subarray(i*3,i*3+3),final,.4);
-    assert.ok(Math.abs(Math.hypot(...direction)-1)<1e-4);
+});
+test('extended observed catalogue gives more detectable sources when closer and exact Tycho endpoints', () => {
+  const raw=gunzipSync(readFileSync(new URL('../public/data/tycho2_mag10.bin.gz',import.meta.url)));
+  const catalogue=parseCatalogue(raw.buffer.slice(raw.byteOffset,raw.byteOffset+raw.byteLength));
+  const model=buildSkyEvolution(catalogue);
+  assert.equal(catalogue.count,329281);
+  assert.equal(model.brightCount,120530);
+  assert.deepEqual(model,buildSkyEvolution(catalogue));
+  let earlyVisible=0,todayVisible=0,drifting=0;
+  for(let i=0;i<catalogue.count;i++) {
+    const direction=catalogue.positions.subarray(i*3,i*3+3), motion=model.motion.subarray(i*4,i*4+4);
+    const early=particlePosition(direction,motion,.4),today=particlePosition(direction,motion,1);
+    for(let j=0;j<3;j++) assert.equal(today[j],direction[j]*motion[3]);
+    assert.ok(early.every(Number.isFinite));
+    const mag=catalogue.magnitudes[i];
+    if(mag-2.5*Math.log10(particleFluxRatio(direction,motion,.4))<9)earlyVisible++;
+    if(mag<9)todayVisible++;
+    const norm=Math.hypot(...early);
+    if(early.some((v,j)=>Math.abs(v/norm-direction[j])>.01))drifting++;
   }
-  assert.ok(evolution.births.every(t=>t>=150 && t<=550));
-  assert.equal(angularSpread(1),1);
+  assert.ok(earlyVisible>todayVisible*2.5,'actual distance brightening reveals faint sources');
+  assert.ok(drifting>catalogue.count*.2,'relative motion creates projected drift');
+  assert.ok(model.births.every(t=>t>=150 && t<=550));
 });

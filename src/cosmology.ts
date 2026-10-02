@@ -75,8 +75,8 @@ export function formatAge(age: number): { value: string; unit: string } {
 export const epochs = [
   { name: 'Recombination', short: '380k years', age: MIN_YEARS, title: 'The first light escapes.', description: 'The universe becomes transparent. A hot, nearly uniform thermal glow fills every direction; stars have yet to form.' },
   { name: 'Dark ages', short: '10m years', age: 10e6, title: 'A sky without stars.', description: 'The primordial glow cools out of visible light. Hydrogen fills a universe waiting for its first stars.' },
-  { name: 'First stars', short: '300m years', age: 300e6, title: 'Darkness gives way.', description: 'The first stellar populations begin to illuminate the cosmos. Tycho stars trace a schematic emergence of starlight.' },
-  { name: 'Reionization', short: '800m years', age: 800e6, title: 'Islands of light.', description: 'Young stars and galaxies reshape their surroundings. Our expanding-source approximation reveals a brighter, denser sky.' },
+  { name: 'First stars', short: '300m years', age: 300e6, title: 'Darkness gives way.', description: 'The first stellar populations begin to illuminate the cosmos. The simulation switches luminous tracers on at assumed formation times.' },
+  { name: 'Reionization', short: '800m years', age: 800e6, title: 'Islands of light.', description: 'Young stars and galaxies reshape their surroundings. Closer simulated sources are brighter; more faint catalogue stars become detectable.' },
   { name: 'Cosmic noon', short: '3b years', age: 3e9, title: 'A universe in bloom.', description: 'Galaxies are vigorously forming stars. A smaller scale factor brings the model’s sources closer and brightens their light.' },
   { name: 'Today', short: '13.8b years', age: TODAY_YEARS, title: 'The sky we know.', description: '120,530 Tycho-2 stars at their measured sky positions. A 2.73 K background. The view from a hypothetical planet today.' },
 ];

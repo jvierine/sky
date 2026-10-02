@@ -1,0 +1,48 @@
+{
+  "stars": 329281,
+  "maxMagnitudeExclusive": 10,
+  "selection": "Tycho-2 main catalogue and both supplements, finite J2000 positions and VT < 10",
+  "format": "WISCAT1: 8-byte magic, uint32 count, uint32 stride=3; Float32 little-endian RA hours, Dec degrees, VT magnitude",
+  "sources": [
+    {
+      "url": "https://archive.eso.org/ASTROM/TYC-2/data/catalog.dat",
+      "sha256": "f9c5dbf675180fbb4bcd06f8078498924a7e1e7e197f2d7d1bc583d0b9ff2522",
+      "columns": {
+        "ra": 25,
+        "dec": 26,
+        "vt": 20
+      },
+      "inputRows": 2539913,
+      "acceptedRows": 327619,
+      "duplicateRows": 0
+    },
+    {
+      "url": "https://archive.eso.org/ASTROM/TYC-2/data/suppl_1.dat",
+      "sha256": "69579a6ec75853cb959e4682155cc72936f96b13930e689c5218b6dcb393b041",
+      "columns": {
+        "ra": 3,
+        "dec": 4,
+        "vt": 14
+      },
+      "inputRows": 17588,
+      "acceptedRows": 1579,
+      "duplicateRows": 0
+    },
+    {
+      "url": "https://archive.eso.org/ASTROM/TYC-2/data/suppl_2.dat",
+      "sha256": "4b2dbc41f4a46ccb5eb065073187b6c3b3617e0fe560666dd713cde6d6c0a8e5",
+      "columns": {
+        "ra": 3,
+        "dec": 4,
+        "vt": 14
+      },
+      "inputRows": 1146,
+      "acceptedRows": 83,
+      "duplicateRows": 0
+    }
+  ],
+  "uncompressedBytes": 3951388,
+  "compressedBytes": 2715018,
+  "generatedAtUtc": "2026-10-02T13:57:24.910830+00:00",
+  "generator": "scripts/build_tycho.py; adapted from WISC/AIDA tools/build_tycho2_catalog.js (CC BY 4.0)"
+}

@@ -2,28 +2,17 @@
 
 Interactive TypeScript / WebGL cosmic history, live at **[juha.no/stars](https://juha.no/stars/)**.
 
-The default view is the sky from a hypothetical planet, starting at today’s measured
-Tycho-2 star positions and magnitudes. Rewind to the observed WMAP nine-year microwave
-temperature map and play forward through a schematic emergence of stars, ending at
-the catalogue sky. Drag to look around, scroll or pinch to zoom, and move the
-linear scale-factor `a` slider. Its secondary axis shows time after the Big Bang in
-Gyr, integrated from the Friedmann equation. Playback uses logarithmic age so the
-early epochs remain visible. Smooth transitions animate expansion between selections.
+The default view is the sky from an observer inside a 3D expanding particle volume.
+Today matches the measured 120,530 Tycho-2 sources with VT < 9. Earlier epochs evolve
+physical particle positions and inverse-square brightness. An additional observed
+VT 9–10 catalogue population becomes detectable when closer. There are no forced
+angular patches, cluster morphs or galaxy sprites.
 
-**Planet sky** surrounds the observer with stars. 1,536 formation patches cover the
-entire sphere, gently shifted using observed WMAP temperature variations. Stars
-appear at individual schematic birth times and move apart along great-circle paths
-as `a` grows. The exact 120,530 measured Tycho vectors constrain the present-day
-endpoint. It draws no synthetic galaxy sprites. “Today” returns to this view. The
-optional **External 3D model**, available only inside **Model & sources**, assigns
-illustrative depths and cluster positions and adds 900 galaxy tracers to demonstrate
-expansion from outside a volume. It is explicitly a separate model, not a planet sky.
-The canvas supports arrow keys and +/−; exposure adjusts visibility. Scientific
-citations and switches for WMAP, stellar populations, thermal light and the sky
-grid are in the same dialog. Controls and secondary labels use at least 14px text.
-The slider occupies a slim bottom bar on phones and desktops, without page scrolling;
-“Epochs” opens presets, and the sun button reveals exposure. Touch drag and pinch work
-on the canvas. Both axes retain their endpoint labels on small phones.
+Drag to look around, scroll or pinch to zoom, and move the slim linear scale-factor
+`a` slider. The secondary axis shows Gyr after the Big Bang. Playback lingers in
+early epochs; “Epochs” opens presets. Model & sources includes the equations,
+assumptions, a relative-motion switch, and an optional observed WMAP microwave
+overlay. Touch controls and readable text work on phones.
 
 ## Run and deploy
 
@@ -50,45 +39,49 @@ old hashed assets and uploading HTML last.
 
 ## Model
 
-The requested first approximation scales fixed source separations by `a`, number
-density by `a⁻³`, and per-source flux by `a⁻²` (`Δm = 5 log₁₀(a)`). In 3D, after the
-formation morph, positions follow `x(t) = a(t) x₀` with a fixed external camera.
-Uniform physical expansion preserves sky angles. The requested apparent separation
-is therefore an explicit visual model, not a consequence of the Friedmann equation.
-Each star’s angular distance from its formation patch follows `0.12 + 0.88a^β` times
-its measured final offset, with patch-dependent β between 0.3 and 1.5. Deterministic
-jitter breaks the regular seed scaffolding; differing dispersal rates avoid identical
-patch silhouettes. These rates are illustrative choices. Spherical interpolation keeps every source on the
-celestial sphere and increases local neighbour separation continuously. At `a=1`,
-the GPU uses the original Tycho vector directly. Patch assignment is independent of
-the camera, so orbiting, zooming or panning cannot change the evolution.
+The simulator uses the **force-free particle limit** in an FLRW background:
 
-Flat ΛCDM uses Planck 2018 values `H₀=67.4 km/s/Mpc`, `Ωm=0.315`, plus simplified
-radiation `Ωr=0.000092` and `ΩΛ=1−Ωm−Ωr`. Numerical integration gives an age near
-13.8 Gyr. The background cools as `T=2.7255 K/a`; visible radiance samples Planck's
-law at 650, 550 and 450 nm, followed by tone mapping. This is an approximate
-three-channel colour response.
+- Physical coordinates `r=a*x`.
+- Canonical momentum `p=a² dx/dt` is conserved (no mutual gravity).
+- Peculiar velocities `v=p/a` decay through Hubble drag.
+- Numerically integrate `J(a)=∫ from t(a) to today dt/a²` with 8,192 logarithmic
+  scale-factor intervals. Solve `x(a)=x0-p*J(a)` and project `r(a)` from the observer.
+- Calibrate each constant luminosity to its measured Tycho magnitude at its assumed
+  present distance. Compute `F/F0=(d0/d)²`, including the observer position.
 
-The WMAP ILC map is observed data in Galactic coordinates with a 1° beam, reprojected
-into the viewing direction. False colour enhances temperature differences over
-±200 µK. Temperature anisotropy is **not a direct matter-density map**. Hot angular
-variations seed deterministic all-sky formation patches. The false-colour map fades
-between 0.5 and 2 Myr. The visible dark-age sky then stays dark, with no matter glow
-or stars. Individual star births begin between 150 and 550 Myr and fade in over
-50 Myr; diffuse formation tracers become visible only after 150 Myr. The separate
-external model retains its 30 Myr–1.3 Gyr position morph and 180 Myr–1 Gyr galaxy
-fade. These interpolation choices
-are artistic, not outputs of a structure-formation calculation. The WMAP product
-has residual foregrounds and small-scale uncertainty; see its product documentation.
+Endpoint priors are log-uniform 100–1,500pc distances and isotropic Gaussian
+present-day peculiar velocities with component dispersion 0.002km/s. These are
+chosen model parameters, **not measured distances or proper motions**. The comoving
+observer sits at the origin. The external view projects the same particles from a
+displaced camera, with its own distances in the flux calculation.
 
-This is a schematic visual experiment, not a reconstruction of the ancient sky
-or an N-body simulation. Bound stars and galaxies do not expand with the universe.
-The expansion approximation nevertheless scales all tracers after formation. Tycho
-stars are present-day measured sources, not identified primordial stars. Synthetic
-depths, colours and galaxy sprites are clearly distinguished from observations.
-The toy flux law omits stellar evolution, dust, spectral redshift, cosmological
-surface-brightness dimming and a past light cone. Population evolution can be disabled
-for a fixed-population experiment; density readouts always describe that experiment.
+Turning relative motion off gives exact Hubble scaling: every 3D separation grows
+with `a`, density scales as `a⁻³`, flux as `a⁻²`, and sky angles remain unchanged.
+With motion enabled, angular separations can increase or decrease. There is no
+constraint forcing all apparent neighbours apart. The exact measured Tycho direction
+is used at `a=1`. VT 9–10 sources enter when their computed apparent magnitude crosses
+the display's VT=9 limit, with a 0.1-magnitude detection transition.
+
+Flat ΛCDM uses Planck 2018 values `H0=67.4km/s/Mpc`, `Ωm=0.315`, simplified
+radiation `Ωr=0.000092` and `ΩΛ=1−Ωm−Ωr`. Friedmann integration gives an age near
+13.8Gyr. The background cools as `T=2.7255K/a`; visible radiance samples Planck's
+law at 650, 550 and 450nm before tone mapping.
+
+Default recombination shows a nearly uniform warm thermal glow. The optional WMAP
+ILC overlay is actual microwave temperature data in Galactic coordinates with a
+1° beam and ±200µK enhanced false colour. It fades between 0.5 and 2Myr. It is not
+a matter-density map and does not seed invented stellar trajectories. The dark ages
+have no visible matter emission or stars. Assumed tracer births occur at 150–550Myr
+with 50Myr luminosity ramps; this phase switch is not a formation solver.
+
+This is a **simulation experiment, not a reconstruction of the ancient sky**.
+Real bound stars and galaxies do not follow Hubble expansion. Tycho sources do not
+identify primordial stars; the catalogue subset lacks 3D positions and velocities.
+The model omits mutual gravity, galaxy formation, stellar evolution/death, dust
+and a past light cone. The local parsec-scale volume uses Euclidean inverse-square
+flux. It does not treat sources as cosmologically distant galaxies or infer their
+redshifts from the cosmic epoch. Colours, exposure response and formation times are
+illustrative. Disabling population evolution gives a fixed-population experiment.
 
 ## Data and reproducibility
 
@@ -99,6 +92,9 @@ column selection, WISCAT1 binary layout, deduplication and sorting, while reject
 blank or invalid positions/magnitudes. It downloads the original ESO-hosted catalogue
 releases and records SHA-256 hashes, source columns and counts in `tycho2_mag9.json`.
 J2000 mean positions and V_T magnitudes are measured; no replacement stars are generated.
+`tycho2_mag10.bin.gz` extends the same observed selection to VT < 10 for the
+fainter population, while the original magnitude-9 catalogue is retained for
+endpoint verification. Generate it with `python3 scripts/build_tycho.py --limit 10`.
 
 `public/data/wmap9.bin.gz` is a 1024 × 512 Galactic equirectangular reprojection of
 NASA LAMBDA's WMAP nine-year ILC FITS map. `scripts/build_cmb.py` uses healpy interpolation,
@@ -128,6 +124,9 @@ python3 scripts/build_cmb.py
    Measured stellar positions and magnitudes.
 6. [Fixsen (2009), The Temperature of the Cosmic Microwave Background,
    ApJ 707, 916–920](https://arxiv.org/abs/0911.1955). Present-day CMB temperature.
+
+7. [Springel (2006), GADGET coordinate and velocity definitions](https://wwwmpa.mpa-garching.mpg.de/gadget/gadget-list/0113.html).
+8. [ESA / Planck: History of cosmic structure formation](https://www.esa.int/Science_Exploration/Space_Science/Planck/History_of_cosmic_structure_formation).
 
 Original app code: MIT. Catalogue observations: ESA / Tycho-2 team. The catalogue
 builder adapts [WISC/AIDA](https://github.com/jvierine/widefield-star-calibrator),

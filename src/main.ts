@@ -2,14 +2,14 @@ import './style.css';
 import { loadCatalogue } from './catalog';
 import { loadCmb } from './cmb';
 import { SkyRenderer } from './renderer';
-import { angularSpread } from './sky-evolution';
+import { driftTime } from './sky-evolution';
 import { ageAtScaleFactor, ageFromSlider, conditions, epochs, formatAge, MIN_SCALE, scaleFactorAtAge, scalePosition, sliderFromAge, TODAY_YEARS } from './cosmology';
 
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const scaleSlider = get<HTMLInputElement>('scale-factor'), exposure = get<HTMLInputElement>('exposure');
 const dialog = get<HTMLDialogElement>('model-dialog');
 const population = get<HTMLInputElement>('population'), background = get<HTMLInputElement>('background'), grid = get<HTMLInputElement>('grid');
-const cmbMap=get<HTMLInputElement>('cmb-map');
+const cmbMap=get<HTMLInputElement>('cmb-map'), motion=get<HTMLInputElement>('motion');
 const play = get<HTMLButtonElement>('play');
 const canvas = get<HTMLCanvasElement>('sky');
 let renderer: SkyRenderer | undefined;
@@ -59,7 +59,7 @@ function update() {
   for (let i = 1; i < epochs.length; i++) if (age >= epochs[i].age * 0.999) index = i;
   const epoch = epochs[index];
   get('epoch-title').textContent = viewMode==='space' && index===5 ? 'A universe in motion.' : epoch.title;
-  get('epoch-description').textContent = cmbMap.checked && index===0 ? 'WMAP’s observed microwave fluctuations: the seeds of structure. Move through time to watch a schematic universe form.' : viewMode==='space' && index===5 ? 'Schematic galaxy groups drift apart with cosmic expansion. Drag to orbit; rewind the scale factor to watch their beginnings.' : epoch.description;
+  get('epoch-description').textContent = cmbMap.checked && index===0 ? 'WMAP’s observed microwave fluctuations, enhanced in false colour. This overlay is not visible light.' : viewMode==='space' && index===5 ? 'The same 3D particles, viewed from outside the simulated volume. Rewind to see physical distances contract.' : epoch.description;
   get('age').innerHTML = `${formatted.value} <small>${age>=1e9?'Gyr':age>=1e6?'Myr':'yr'}</small>`;
   get('temperature').innerHTML = `${state.temperature >= 100 ? state.temperature.toFixed(0) : state.temperature.toFixed(2)} <small>K</small>`;
   get('scale').innerHTML = `${state.a < 0.01 ? state.a.toFixed(5) : state.a.toFixed(3)} <small>a</small>`;
@@ -77,16 +77,16 @@ function update() {
   const starsAbsent = population.checked && state.population === 0;
   const hiddenGlow = background.checked && state.temperature > 1500;
   const seedField=cmbMap.checked && age<2e6;
-  get('sky-state').textContent = seedField ? 'WMAP seed field → schematic matter & stars' : viewMode==='space' ? '3D model · illustrative cluster depths' : starsAbsent ? hiddenGlow ? 'Visible light · a sky filled with primordial glow' : 'Visible light · no stars yet' : !population.checked ? 'Fixed population · counterfactual Tycho sky' : state.a===1 ? 'Tycho-2 catalogue · present-day sky' : 'Tycho-2 directions · schematic early population';
-  get('model-label').textContent=viewMode==='space' ? 'External 3D model' : state.a===1 ? 'Measured Tycho-2 sky' : starsAbsent ? seedField ? 'WMAP · enhanced microwave colour' : 'Dark ages · no visible stars' : 'Illustrative angular expansion';
-  get('angular-ratio').textContent=angularSpread(state.a).toFixed(3);
+  get('sky-state').textContent = seedField ? 'WMAP · enhanced microwave overlay' : viewMode==='space' ? '3D model · same simulated particles' : starsAbsent ? hiddenGlow ? 'Visible light · a sky filled with primordial glow' : 'Visible light · no stars yet' : !population.checked ? 'Fixed population · counterfactual Tycho sky' : state.a===1 ? 'Tycho-2 catalogue · present-day sky' : 'Expanding particles · assumed depths and velocities';
+  get('model-label').textContent=viewMode==='space' ? 'External 3D model' : state.a===1 ? 'Measured Tycho-2 sky' : starsAbsent ? seedField ? 'WMAP · enhanced microwave colour' : hiddenGlow ? 'Recombination · visible thermal glow' : 'Dark ages · no visible stars' : '3D expansion · simulated stellar tracers';
+  get('angular-ratio').textContent=driftTime(Math.max(MIN_SCALE,state.a)).toFixed(2)+' Gyr';
   get('cmb-legend').hidden=!seedField;
   document.body.dataset.epoch = epoch.name;
   document.body.dataset.view=viewMode;
 }
 scaleSlider.addEventListener('input', () => { setPlaying(false); selectedAge = null; scaleValue = Number(scaleSlider.value); update(); });
 exposure.addEventListener('input', update);
-for (const checkbox of [population,background,grid,cmbMap]) checkbox.addEventListener('change', update);
+for (const checkbox of [population,background,grid,cmbMap,motion]) checkbox.addEventListener('change', update);
 function chooseView(mode:'space'|'sky') {
   viewMode=mode;
   renderer?.setMode(mode);
@@ -130,7 +130,7 @@ async function initialize() {
     const [catalogue,cmb] = await Promise.all([loadCatalogue(),loadCmb()]);
     renderer.setCatalogue(catalogue,cmb);
     catalogueCount = catalogue.count;
-    get('catalog-status').innerHTML = `<span class="status-dot"></span> ${catalogueCount.toLocaleString('en-US')} TYCHO-2 STARS <span class="catalog-detail"> / V<sub>T</sub> &lt; 9</span>`;
+    get('catalog-status').innerHTML = `<span class="status-dot"></span> ${catalogue.magnitudes.filter(m=>m<9).length.toLocaleString('en-US')} TYCHO-2 STARS <span class="catalog-detail"> / V<sub>T</sub> &lt; 9</span>`;
     get('error').hidden = true;
     document.body.dataset.ready = 'true';
     needsRender = true;
@@ -157,11 +157,15 @@ function frame(now: number) {
     displayedScale+=difference*(1-Math.exp(-delta*14));
     needsRender=true;
     document.body.dataset.settled='false';
-  } else { displayedScale=scaleValue; document.body.dataset.settled='true'; }
+  } else {
+    if(displayedScale!==scaleValue) needsRender=true;
+    displayedScale=scaleValue;
+    document.body.dataset.settled='true';
+  }
   // Smoothly approach a requested epoch, then stop rendering when idle.
   if (!document.hidden && (needsRender || renderer?.hasActiveKeys)) {
     needsRender = false;
-    renderer?.render(ageAtScaleFactor(displayedScale),Number(exposure.value),population.checked,background.checked,grid.checked,delta,cmbMap.checked);
+    renderer?.render(ageAtScaleFactor(displayedScale),Number(exposure.value),population.checked,background.checked,grid.checked,delta,cmbMap.checked,motion.checked);
   }
   requestAnimationFrame(frame);
 }

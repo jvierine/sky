@@ -1,83 +1,37 @@
 import type { Catalogue } from './catalog';
-import { conditions, smoothstep, thermalRGB } from './cosmology';
+import { conditions, MIN_SCALE, smoothstep, thermalRGB } from './cosmology';
 import type { CmbMap } from './cmb';
-import { buildStructure } from './structure';
-import { buildSkyEvolution } from './sky-evolution';
+import { buildSkyEvolution, driftTime } from './sky-evolution';
 
 const starVertex = `
-attribute vec3 a_position;
-attribute float a_magnitude;
-attribute vec3 a_colour;
-attribute float a_depth;
-attribute vec3 a_target;
-attribute float a_cmb;
-attribute vec4 a_skySeed;
-attribute float a_birth;
+attribute vec3 a_position, a_colour;
+attribute float a_magnitude, a_birth;
+attribute vec4 a_motion;
 uniform vec3 u_right, u_up, u_forward;
-uniform float u_aspect, u_tanFov, u_pixelRatio, u_flux, u_population;
-uniform float u_spatial, u_scale, u_cameraDistance, u_formation, u_seedCloud;
-uniform float u_timeMyr, u_evolve;
+uniform float u_aspect, u_tanFov, u_pixelRatio, u_exposure;
+uniform float u_spatial, u_scale, u_cameraDistance, u_drift, u_timeMyr, u_evolve;
 varying vec3 v_colour;
 varying float v_brightness;
 void main() {
-  vec3 initial = a_position*a_depth*0.45;
-  vec3 formed = a_target*u_scale;
-  vec3 seed=normalize(a_skySeed.xyz), final=normalize(a_position);
-  float cosine=clamp(dot(seed,final),-1.0,1.0);
-  float sine=length(cross(seed,final)), theta=atan(sine,cosine);
-  vec3 tangent=(final-seed*cosine)/max(sine,0.000001);
-  float spread=0.12+0.88*pow(u_scale,a_skySeed.w);
-  vec3 skyPosition=seed*cos(theta*spread)+tangent*sin(theta*spread);
-  // Use the catalogue vector directly at today's endpoint, without rounding
-  // through spherical interpolation or any synthetic cluster transformation.
-  if(u_scale>=1.0 || sine<0.000001) skyPosition=a_position;
-  vec3 position = mix(skyPosition,mix(initial,formed,u_formation),u_spatial);
-  float z = dot(position, u_forward) + u_spatial*u_cameraDistance;
-  gl_Position = vec4(dot(position,u_right)/u_tanFov/u_aspect, dot(position,u_up)/u_tanFov, z-0.001, z);
-  float flux = pow(10.0, -0.4*(a_magnitude-5.0)) * u_flux;
+  // Position in parsecs relative to a comoving observer. Momentum is stored in
+  // pc/Gyr; the cosmological drift integral is in Gyr. Same equations as CPU.
+  vec3 physical=u_scale*(a_position*a_motion.w-a_motion.xyz*u_drift);
+  float distance=max(length(physical+u_forward*u_spatial*u_cameraDistance),0.0001);
+  float flux=pow(10.0,-0.4*(a_magnitude-5.0))*u_exposure*pow(a_motion.w/distance,2.0);
   float born=mix(1.0,smoothstep(a_birth,a_birth+50.0,u_timeMyr),u_evolve);
-  float skySize=mix(1.2,clamp(1.4+3.1*pow(flux,0.25),1.5,mix(4.0,16.0,u_scale)),born);
-  float spatialSize=mix(1.2,clamp(0.65+0.65*pow(flux,0.25),0.9,2.8),u_population);
-  gl_PointSize=mix(skySize,spatialSize,u_spatial)*u_pixelRatio;
-  vec3 cloudColour=mix(vec3(0.15,0.55,1.0),vec3(1.0,0.40,0.12),a_cmb);
-  float cloud=(1.0-u_formation)*u_seedCloud*mix(0.025,0.035,u_spatial);
-  float starlight=(1.0-exp(-flux*0.95))*mix(born,u_population,u_spatial)*mix(1.0,0.045,u_spatial);
-  v_colour=mix(cloudColour,a_colour,starlight/max(0.00001,starlight+cloud));
-  v_brightness=starlight+cloud;
-  if (z <= 0.01 || v_brightness <= 0.0) gl_Position = vec4(2.0,2.0,2.0,1.0);
-}`;
-const galaxyVertex = `
-attribute vec3 a_position, a_initial, a_colour;
-attribute float a_seed;
-uniform vec3 u_right, u_up, u_forward;
-uniform float u_aspect, u_tanFov, u_pixelRatio, u_scale, u_cameraDistance, u_population, u_exposure, u_formation;
-varying vec3 v_colour;
-varying float v_seed, v_opacity;
-void main() {
-  vec3 position = mix(a_initial*0.45,a_position*u_scale,u_formation);
-  float z = dot(position,u_forward)+u_cameraDistance;
+  vec3 position=mix(normalize(physical),physical,u_spatial);
+  // Preserve the measured direction exactly at the endpoint.
+  if(u_scale>=1.0 && u_spatial<0.5) position=a_position;
+  float z=dot(position,u_forward)+u_spatial*u_cameraDistance;
   gl_Position=vec4(dot(position,u_right)/u_tanFov/u_aspect,dot(position,u_up)/u_tanFov,z-0.001,z);
-  gl_PointSize=clamp((120.0+85.0*a_seed)/max(z,0.1)/u_tanFov,3.0,70.0)*u_pixelRatio;
+  // Additional VT 9–10 sources enter when their computed apparent magnitude
+  // crosses the display's VT=9 limit. No time-dependent graphical fade-out.
+  float detection=1.0;
+  if(a_magnitude>=9.0) detection=smoothstep(pow(10.0,-1.6),pow(10.0,-1.56),flux/u_exposure);
+  gl_PointSize=clamp(1.4+3.1*pow(flux,0.25),1.5,mix(4.0,16.0,u_scale))*u_pixelRatio;
   v_colour=a_colour;
-  v_seed=a_seed;
-  v_opacity=u_population*(1.0-exp(-u_exposure*1.3));
-  if(z<=0.01) gl_Position=vec4(2.0,2.0,2.0,1.0);
-}`;
-const galaxyFragment = `
-precision mediump float;
-varying vec3 v_colour;
-varying float v_seed, v_opacity;
-void main() {
-  vec2 p=gl_PointCoord*2.0-1.0;
-  float angle=v_seed*6.283185;
-  vec2 q=mat2(cos(angle),-sin(angle),sin(angle),cos(angle))*p;
-  q.y /= 0.35+0.6*v_seed;
-  float r=length(q);
-  if(r>1.0) discard;
-  float disc=exp(-r*r*12.0);
-  float core=exp(-r*r*95.0);
-  vec3 colour=mix(v_colour,vec3(1.0,0.93,0.76),core);
-  gl_FragColor=vec4(colour,(disc*0.75+core*0.6)*v_opacity);
+  v_brightness=(1.0-exp(-flux*0.95))*born*detection;
+  if(z<=0.01 || v_brightness<=0.0) gl_Position=vec4(2.0,2.0,2.0,1.0);
 }`;
 const starFragment = `
 precision mediump float;
@@ -131,13 +85,11 @@ export class SkyRenderer {
   readonly gl: WebGLRenderingContext;
   private stars: Program;
   private background: Program;
-  private galaxies: Program;
-  private galaxyBuffers: WebGLBuffer[];
   private cmbTexture: WebGLTexture;
   private cmb?: CmbMap;
-  readonly galaxyCount = 900;
   private catalogue?: Catalogue;
   private buffers: WebGLBuffer[] = [];
+  private brightCount = 0;
   private triangle: WebGLBuffer;
   yaw = 1.4;
   pitch = 0.12;
@@ -157,27 +109,9 @@ export class SkyRenderer {
     this.gl = gl;
     this.stars = this.program(starVertex, starFragment);
     this.background = this.program(bgVertex, bgFragment);
-    this.galaxies = this.program(galaxyVertex, galaxyFragment);
     this.cmbTexture=gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D,this.cmbTexture);
     gl.texImage2D(gl.TEXTURE_2D,0,gl.LUMINANCE,1,1,0,gl.LUMINANCE,gl.UNSIGNED_BYTE,new Uint8Array([128]));
-    // Deterministic illustrative galaxy groups, independent of the Tycho data.
-    let seed = 1731;
-    const random = () => { seed = (Math.imul(seed,1664525)+1013904223)>>>0; return seed/4294967296; };
-    const sphere = (radius: number) => {
-      const azimuth = random()*Math.PI*2, z = random()*2-1, r = radius*Math.cbrt(random());
-      return [r*Math.sqrt(1-z*z)*Math.cos(azimuth), r*z, r*Math.sqrt(1-z*z)*Math.sin(azimuth)];
-    };
-    const centres = Array.from({length:32},()=>sphere(4.8));
-    const positions = new Float32Array(this.galaxyCount*3), colours = new Float32Array(this.galaxyCount*3), seeds = new Float32Array(this.galaxyCount);
-    for(let i=0;i<this.galaxyCount;i++) {
-      const centre=centres[i%centres.length], offset=sphere(0.85);
-      positions.set(centre.map((n,j)=>n+offset[j]),i*3);
-      const colour=random();
-      colours.set(colour<0.35?[1,0.65,0.35]:colour>0.75?[0.66,0.58,1]:[0.46,0.77,1],i*3);
-      seeds[i]=random();
-    }
-    this.galaxyBuffers=[this.buffer(positions),this.buffer(colours),this.buffer(seeds),this.buffer(positions)];
     this.triangle = this.buffer(new Float32Array([-1,-1,3,-1,-1,3]));
     const options = { signal: this.events.signal };
     canvas.addEventListener('pointerdown', e => {
@@ -227,11 +161,9 @@ export class SkyRenderer {
   dispose() {
     this.events.abort();
     for (const buffer of this.buffers) this.gl.deleteBuffer(buffer);
-    for (const buffer of this.galaxyBuffers) this.gl.deleteBuffer(buffer);
     this.gl.deleteBuffer(this.triangle);
     this.gl.deleteProgram(this.stars.program);
     this.gl.deleteProgram(this.background.program);
-    this.gl.deleteProgram(this.galaxies.program);
     this.gl.deleteTexture(this.cmbTexture);
   }
   private getPinchDistance() {
@@ -269,16 +201,9 @@ export class SkyRenderer {
     this.catalogue = catalogue;
     this.cmb=cmb;
     for (const buffer of this.buffers) this.gl.deleteBuffer(buffer);
-    const structure=buildStructure(catalogue,cmb);
-    const sky=buildSkyEvolution(catalogue,cmb);
-    this.buffers = [this.buffer(catalogue.positions), this.buffer(catalogue.magnitudes), this.buffer(catalogue.colours),this.buffer(structure.depths),this.buffer(structure.targets),this.buffer(structure.temperatures),this.buffer(sky.motion),this.buffer(sky.births)];
-    const positions=new Float32Array(this.galaxyCount*3);
-    for(let i=0;i<this.galaxyCount;i++) {
-      const centre=structure.centres[i%structure.centres.length];
-      positions.set(centre.map((n,j)=>n+Math.sin(i*17.71+j*2.31)*0.7),i*3);
-    }
-    this.gl.deleteBuffer(this.galaxyBuffers[0]);
-    this.galaxyBuffers[0]=this.buffer(positions);
+    const sky=buildSkyEvolution(catalogue);
+    this.brightCount=sky.brightCount;
+    this.buffers=[this.buffer(catalogue.positions),this.buffer(catalogue.magnitudes),this.buffer(catalogue.colours),this.buffer(sky.motion),this.buffer(sky.births)];
     const gl=this.gl;
     gl.bindTexture(gl.TEXTURE_2D,this.cmbTexture);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
@@ -290,7 +215,7 @@ export class SkyRenderer {
   }
   setMode(mode: 'space' | 'sky') { this.mode=mode; this.reset(); }
   reset() { this.yaw = 1.4; this.pitch = 0.12; this.fov = this.mode==='space'?60:80; this.cameraDistance=10; this.onViewChange(); }
-  render(age: number, exposure: number, population: boolean, background: boolean, grid: boolean, delta: number, showCmb=true) {
+  render(age: number, exposure: number, population: boolean, background: boolean, grid: boolean, delta: number, showCmb=false, moving=true) {
     const gl = this.gl;
     if (gl.isContextLost()) return;
     if (this.keys.size) {
@@ -310,7 +235,6 @@ export class SkyRenderer {
     const right = [-Math.sin(this.yaw),0,Math.cos(this.yaw)];
     const up = [-Math.sin(this.pitch)*Math.cos(this.yaw),Math.cos(this.pitch),-Math.sin(this.pitch)*Math.sin(this.yaw)];
     const state = conditions(age), ev = 2 ** exposure, spatial = this.mode==='space';
-    const formation=smoothstep(30e6,1.3e9,age);
     const common = (p: Program) => {
       gl.useProgram(p.program);
       gl.uniform3fv(p.uniform('u_forward'), forward);
@@ -334,37 +258,18 @@ export class SkyRenderer {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
     common(this.stars);
     gl.uniform1f(this.stars.uniform('u_pixelRatio'),ratio);
-    gl.uniform1f(this.stars.uniform('u_flux'),state.flux*ev);
-    gl.uniform1f(this.stars.uniform('u_population'),population ? state.population : 1);
+    gl.uniform1f(this.stars.uniform('u_exposure'),ev);
     gl.uniform1f(this.stars.uniform('u_spatial'),Number(spatial));
     gl.uniform1f(this.stars.uniform('u_scale'),state.a);
     gl.uniform1f(this.stars.uniform('u_timeMyr'),age/1e6);
     gl.uniform1f(this.stars.uniform('u_evolve'),Number(population));
-    gl.uniform1f(this.stars.uniform('u_cameraDistance'),this.cameraDistance);
-    gl.uniform1f(this.stars.uniform('u_formation'),formation);
-    gl.uniform1f(this.stars.uniform('u_seedCloud'),showCmb?smoothstep(150e6,350e6,age):0);
+    gl.uniform1f(this.stars.uniform('u_drift'),moving?driftTime(Math.max(state.a,MIN_SCALE)):0);
+    gl.uniform1f(this.stars.uniform('u_cameraDistance'),this.cameraDistance*150);
     this.attribute(this.stars,'a_position',this.buffers[0],3);
     this.attribute(this.stars,'a_magnitude',this.buffers[1],1);
     this.attribute(this.stars,'a_colour',this.buffers[2],3);
-    this.attribute(this.stars,'a_depth',this.buffers[3],1);
-    this.attribute(this.stars,'a_target',this.buffers[4],3);
-    this.attribute(this.stars,'a_cmb',this.buffers[5],1);
-    this.attribute(this.stars,'a_skySeed',this.buffers[6],4);
-    this.attribute(this.stars,'a_birth',this.buffers[7],1);
-    gl.drawArrays(gl.POINTS,0,this.catalogue.count);
-    if(spatial) {
-      common(this.galaxies);
-      gl.uniform1f(this.galaxies.uniform('u_scale'),state.a);
-      gl.uniform1f(this.galaxies.uniform('u_cameraDistance'),this.cameraDistance);
-      gl.uniform1f(this.galaxies.uniform('u_pixelRatio'),ratio);
-      gl.uniform1f(this.galaxies.uniform('u_population'),population ? smoothstep(180e6,1e9,age) : 1);
-      gl.uniform1f(this.galaxies.uniform('u_exposure'),ev);
-      gl.uniform1f(this.galaxies.uniform('u_formation'),formation);
-      this.attribute(this.galaxies,'a_position',this.galaxyBuffers[0],3);
-      this.attribute(this.galaxies,'a_colour',this.galaxyBuffers[1],3);
-      this.attribute(this.galaxies,'a_seed',this.galaxyBuffers[2],1);
-      this.attribute(this.galaxies,'a_initial',this.galaxyBuffers[3],3);
-      gl.drawArrays(gl.POINTS,0,this.galaxyCount);
-    }
+    this.attribute(this.stars,'a_motion',this.buffers[3],4);
+    this.attribute(this.stars,'a_birth',this.buffers[4],1);
+    gl.drawArrays(gl.POINTS,0,state.a===1 ? this.brightCount : this.catalogue.count);
   }
 }
