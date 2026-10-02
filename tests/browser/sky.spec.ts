@@ -1,4 +1,74 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
+import { parseCatalogue } from '../../src/catalog';
+import { parseCmb } from '../../src/cmb';
+import { buildSkyEvolution, evolvedDirection } from '../../src/sky-evolution';
+async function epoch(page: Page, label: string) {
+  if(await page.locator('#epoch-menu').getAttribute('aria-expanded')!=='true') await page.getByRole('button',{name:'Epochs ▴'}).click();
+  await page.getByRole('button',{name:label.replace(/^0\d /,'')}).click();
+}
+test('dark ages are dark with default settings and stars move apart on the sky', async ({page})=>{
+  await page.goto('./');
+  await expect(page.locator('body')).toHaveAttribute('data-ready','true');
+  await epoch(page,'02 Dark ages');
+  await expect(page.locator('body')).toHaveAttribute('data-settled','true');
+  const dark=await page.locator('#sky').evaluate((canvas:HTMLCanvasElement)=>{
+    const gl=canvas.getContext('webgl')!, pixels=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);
+    gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+    let brightest=0;for(let i=0;i<pixels.length;i+=4)brightest=Math.max(brightest,pixels[i],pixels[i+1],pixels[i+2]);
+    return brightest;
+  });
+  expect(dark).toBeLessThan(8);
+  await expect(page.locator('#cmb-legend')).toBeHidden();
+  await page.screenshot({path:'test-results/dark-ages-desktop.png'});
+  const buffer=(path:string)=>{const b=gunzipSync(readFileSync(path));return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength);};
+  const catalogue=parseCatalogue(buffer('public/data/tycho2_mag9.bin.gz'));
+  const sky=buildSkyEvolution(catalogue,parseCmb(buffer('public/data/wmap9.bin.gz')));
+  const w=1440,h=900;
+  const project=(v:ArrayLike<number>)=>{
+    const x=v[0],y=v[1],z=v[2],yaw=1.4,pitch=.12,tan=Math.tan(40*Math.PI/180);
+    const depth=x*Math.cos(pitch)*Math.cos(yaw)+y*Math.sin(pitch)+z*Math.cos(pitch)*Math.sin(yaw);
+    return {x:w/2+(-x*Math.sin(yaw)+z*Math.cos(yaw))*h/(2*tan*depth),y:h/2+(-x*Math.sin(pitch)*Math.cos(yaw)+y*Math.cos(pitch)-z*Math.sin(pitch)*Math.sin(yaw))*h/(2*tan*depth),depth};
+  };
+  const groups=new Map<number,number[]>();
+  let pair:number[]=[];
+  for(let i=0;i<catalogue.count && catalogue.magnitudes[i]<5;i++) {
+    const p=project(catalogue.positions.subarray(i*3,i*3+3));
+    if(sky.exponents[sky.patches[i]]<0.9||p.depth<.7||p.x<30||p.x>w-30||p.y<30||p.y>h-30)continue;
+    const members=groups.get(sky.patches[i])??[];
+    for(const other of members) {
+      const q=project(catalogue.positions.subarray(other*3,other*3+3));
+      if(Math.hypot(p.x-q.x,p.y-q.y)>15){pair=[other,i];break;}
+    }
+    if(pair.length)break;
+    members.push(i);groups.set(sky.patches[i],members);
+  }
+  expect(pair).toHaveLength(2);
+  const actualSeparation=async(a:number)=>{
+    await page.getByRole('slider',{name:'Scale factor a'}).fill(String(a));
+    await expect(page.locator('body')).toHaveAttribute('data-settled','true');
+    const expected=pair.map(i=>project(evolvedDirection(sky.seeds.subarray(i*3,i*3+3),catalogue.positions.subarray(i*3,i*3+3),a,sky.exponents[sky.patches[i]])));
+    const peaks=await page.locator('#sky').evaluate((canvas:HTMLCanvasElement,points:{x:number,y:number}[])=>{
+      const gl=canvas.getContext('webgl')!,w=gl.drawingBufferWidth,h=gl.drawingBufferHeight,pixels=new Uint8Array(w*h*4);
+      gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+      return points.map(point=>{
+        let best=-1,px=0,py=0;
+        for(let y=Math.round(point.y)-3;y<=Math.round(point.y)+3;y++)for(let x=Math.round(point.x)-3;x<=Math.round(point.x)+3;x++){
+          const i=(y*w+x)*4,value=pixels[i]+pixels[i+1]+pixels[i+2];
+          if(value>best){best=value;px=x;py=y;}
+        }
+        return {x:px,y:py,brightness:best};
+      });
+    },expected);
+    expect(peaks.every(p=>p.brightness>100)).toBe(true);
+    return Math.hypot(peaks[0].x-peaks[1].x,peaks[0].y-peaks[1].y);
+  };
+  const early=await actualSeparation(.2),today=await actualSeparation(1);
+  expect(today).toBeGreaterThan(early*2);
+  await expect(page.locator('#fov')).toHaveText('80°');
+  await page.screenshot({path:'test-results/minimal-sky-desktop.png'});
+});
 test('default and Today show actual Tycho positions with no synthetic galaxy draw', async ({ page }) => {
   await page.addInitScript(()=>{
     const original=WebGLRenderingContext.prototype.drawArrays;
@@ -47,9 +117,9 @@ test('default and Today show actual Tycho positions with no synthetic galaxy dra
   expect(initial.visible).toBeGreaterThan(15);
   expect(initial.matched/initial.visible).toBeGreaterThan(0.95);
   expect(new Set(initial.draws)).toEqual(new Set([120530]));
-  await page.getByRole('button',{name:'01 Recombination'}).click();
+  await epoch(page,'01 Recombination');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
-  await page.getByRole('button',{name:'06 Today'}).click();
+  await epoch(page,'06 Today');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   const returned=await checkPositions();
   expect(returned.matched).toBe(initial.matched);
@@ -62,15 +132,14 @@ test('catalogue, GPU, epochs, and viewing controls work', async ({ page }) => {
   await expect(page.locator('body')).toHaveAttribute('data-ready','true');
   await expect(page.locator('#catalog-status')).toContainText('120,530');
   await expect(page.locator('body')).toHaveAttribute('data-view','sky');
-  await page.getByRole('button',{name:'06 Today'}).click();
+  await epoch(page,'06 Today');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   await page.getByRole('button',{name:'Model & sources'}).click();
   await page.locator('#cmb-map').uncheck();
   await page.getByRole('button',{name:'Close model details'}).click();
   await expect(page.locator('#epoch-title')).toHaveText('The sky we know.');
-  const controls=await page.locator('.view-tools').boundingBox();
   const timeline=await page.locator('.timeline').boundingBox();
-  expect(controls!.y+controls!.height).toBeLessThan(timeline!.y);
+  expect(timeline!.height).toBeLessThan(110);
   await page.screenshot({path:'test-results/today-desktop.png'});
   const pixelSignature = () => page.locator('#sky').evaluate((canvas:HTMLCanvasElement)=>{
     const gl=canvas.getContext('webgl')!;
@@ -83,21 +152,21 @@ test('catalogue, GPU, epochs, and viewing controls work', async ({ page }) => {
   const today=await pixelSignature();
   expect(today.error).toBe(0);
   expect(today.bright).toBeGreaterThan(200);
-  await page.getByRole('button',{name:'01 Recombination'}).click();
+  await epoch(page,'01 Recombination');
   await expect(page.locator('#age')).toContainText('380,000');
   await expect(page.locator('#sky-state')).toContainText('primordial glow');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   const glow=await pixelSignature();
   expect(glow.sum).toBeGreaterThan(today.sum*10);
   await page.screenshot({path:'test-results/recombination-desktop.png'});
-  await page.getByRole('button',{name:'02 Dark ages'}).click();
+  await epoch(page,'02 Dark ages');
   await expect(page.locator('#sky-state')).toContainText('no stars yet');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   const dark=await pixelSignature();
   expect(dark.bright).toBe(0);
   expect(dark.sum).toBeLessThan(today.sum);
   for(const label of ['03 First stars','04 Reionization','05 Cosmic noon','06 Today']) {
-    await page.getByRole('button',{name:label}).click();
+    await epoch(page,label);
     await expect(page.locator('#error')).toBeHidden();
     await page.waitForTimeout(50);
     expect((await pixelSignature()).error).toBe(0);
@@ -153,7 +222,7 @@ test('observed CMB morphs smoothly into expanding structure, with scientific cit
     }
     return {bright,white,radius:Math.sqrt(radius/Math.max(1,bright)),chromatic,total:w*h,error:gl.getError()};
   });
-  await page.getByRole('button',{name:'01 Recombination'}).click();
+  await epoch(page,'01 Recombination');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   await page.getByRole('button',{name:'Model & sources'}).click();
   await page.getByRole('button',{name:'External 3D model',exact:true}).click();
@@ -162,7 +231,7 @@ test('observed CMB morphs smoothly into expanding structure, with scientific cit
   expect(cmb.chromatic).toBeGreaterThan(cmb.total*0.3);
   expect(cmb.white).toBe(0);
   await page.screenshot({path:'test-results/wmap-desktop.png'});
-  await page.getByRole('button',{name:'03 First stars'}).click();
+  await epoch(page,'03 First stars');
   await expect(page.locator('body')).toHaveAttribute('data-settled','false');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   await page.screenshot({path:'test-results/first-stars-desktop.png'});
@@ -175,7 +244,7 @@ test('observed CMB morphs smoothly into expanding structure, with scientific cit
   expect(expanded.radius).toBeGreaterThan(compact.radius*1.8);
   expect(expanded.bright).toBeGreaterThan(1000);
   expect(expanded.error).toBe(0);
-  await page.getByRole('button',{name:'06 Today'}).click();
+  await epoch(page,'06 Today');
   await expect(page.locator('body')).toHaveAttribute('data-view','sky');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   await page.screenshot({path:'test-results/tycho-endpoint-desktop.png'});
@@ -187,27 +256,44 @@ test('observed CMB morphs smoothly into expanding structure, with scientific cit
   await expect(references.first().locator('a')).toHaveAttribute('href',/lambda.gsfc.nasa.gov/);
   await expect(references.nth(3)).toContainText('The First Galaxies');
 });
-test('phone layout keeps controls usable and has no horizontal overflow', async ({ page }) => {
+test.describe('phone',()=>{
+  test.use({hasTouch:true,isMobile:true});
+  test('phone layout keeps controls usable and has no horizontal overflow', async ({ page }) => {
   await page.setViewportSize({width:390,height:844});
   await page.goto('./');
   await expect(page.locator('body')).toHaveAttribute('data-ready','true');
   await page.screenshot({path:'test-results/today-mobile.png',fullPage:true});
-  await page.locator('.epoch-button[data-index="5"]').scrollIntoViewIfNeeded();
+  const timeline=await page.locator('.timeline').boundingBox();
+  expect(timeline!.height).toBeLessThan(110);
+  expect(await page.evaluate(()=>document.documentElement.scrollHeight)).toBe(844);
+  await page.getByRole('button',{name:'Epochs ▴'}).click();
   await expect(page.locator('.epoch-button[data-index="5"]')).toBeInViewport();
   const minimum=await page.locator('.epoch-name, .epoch-age, .axis-ticks, .description, .readout-label').evaluateAll(elements=>Math.min(...elements.map(e=>parseFloat(getComputedStyle(e).fontSize))));
   expect(minimum).toBeGreaterThanOrEqual(14);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
   for (let i=0;i<6;i++) {
+    if(await page.locator('#epoch-menu').getAttribute('aria-expanded')!=='true') await page.getByRole('button',{name:'Epochs ▴'}).click();
     await page.locator(`.epoch-button[data-index="${i}"]`).click();
     const copy = await page.locator('.epoch-copy').boundingBox();
     const readouts = await page.locator('.readouts').boundingBox();
     expect(copy!.y+copy!.height).toBeLessThan(readouts!.y);
   }
+  const before=await page.locator('#sky').evaluate((canvas:HTMLCanvasElement)=>canvas.toDataURL());
+  const touch=await page.context().newCDPSession(page);
+  await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:140,y:380,id:0}]});
+  await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:200,y:380,id:0}]});
+  await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await expect.poll(()=>page.locator('#sky').evaluate((canvas:HTMLCanvasElement)=>canvas.toDataURL())).not.toBe(before);
+  await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:120,y:400,id:0},{x:250,y:400,id:1}]});
+  await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:75,y:400,id:0},{x:295,y:400,id:1}]});
+  await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await expect(page.locator('#fov')).not.toHaveText('80°');
   await page.getByRole('button',{name:'Model & sources'}).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.screenshot({path:'test-results/model-mobile.png'});
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).not.toBeVisible();
+});
 });
 test('graphics context restores and catalogue failures are explained', async ({ page }) => {
   await page.goto('./');

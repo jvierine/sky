@@ -6,6 +6,7 @@ import { ageAtScaleFactor, ageFromSlider, conditions, MIN_SCALE, MIN_YEARS, scal
 import { parseCatalogue } from '../src/catalog.ts';
 import { parseCmb, sampleCmb } from '../src/cmb.ts';
 import { buildStructure } from '../src/structure.ts';
+import { angularSpread, buildSkyEvolution, evolvedDirection, PATCH_COUNT } from '../src/sky-evolution.ts';
 
 test('Friedmann integration agrees with present age and recombination', () => {
   assert.ok(TODAY_YEARS > 13.7e9 && TODAY_YEARS < 13.9e9, String(TODAY_YEARS));
@@ -78,4 +79,39 @@ test('observed WMAP map has real anisotropy and seeds reproducible finite cluste
   assert.deepEqual(first.targets,second.targets);
   assert.ok(first.targets.every(Number.isFinite));
   assert.ok(first.depths.every(n=>n>0 && n<6));
+});
+test('all-sky birth patches separate continuously and end at the exact Tycho vectors', () => {
+  const data=gunzipSync(readFileSync(new URL('../public/data/wmap9.bin.gz',import.meta.url)));
+  const cmb=parseCmb(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));
+  const raw=gunzipSync(readFileSync(new URL('../public/data/tycho2_mag9.bin.gz',import.meta.url)));
+  const catalogue=parseCatalogue(raw.buffer.slice(raw.byteOffset,raw.byteOffset+raw.byteLength));
+  const evolution=buildSkyEvolution(catalogue,cmb);
+  assert.equal(evolution.centres.length,PATCH_COUNT*3);
+  const occupancy=new Set(evolution.patches);
+  assert.ok(occupancy.size>PATCH_COUNT*0.9,'birth patches must surround the observer');
+  const pairs=new Map<number,number[]>();
+  for(let i=0;i<catalogue.count;i++){
+    const patch=evolution.patches[i],pair=pairs.get(patch)??[];
+    if(pair.length<2)pair.push(i);
+    pairs.set(patch,pair);
+  }
+  const angle=(p:number[],q:number[])=>Math.atan2(Math.hypot(p[1]*q[2]-p[2]*q[1],p[2]*q[0]-p[0]*q[2],p[0]*q[1]-p[1]*q[0]),p.reduce((s,v,j)=>s+v*q[j],0));
+  for(const pair of pairs.values()) {
+    if(pair.length<2)continue;
+    let last=-1;
+    for(const a of [0.05,0.2,0.4,0.7,1]) {
+      const directions=pair.map(i=>evolvedDirection(evolution.seeds.subarray(i*3,i*3+3),catalogue.positions.subarray(i*3,i*3+3),a,evolution.exponents[evolution.patches[i]]));
+      const separation=angle(directions[0],directions[1]);
+      assert.ok(separation>=last-1e-5,'neighbouring stars must separate as a grows');
+      last=separation;
+    }
+  }
+  for(let i=0;i<catalogue.count;i+=131){
+    const final=catalogue.positions.subarray(i*3,i*3+3);
+    assert.deepEqual(evolvedDirection(evolution.seeds.subarray(i*3,i*3+3),final,1),Array.from(final));
+    const direction=evolvedDirection(evolution.seeds.subarray(i*3,i*3+3),final,.4);
+    assert.ok(Math.abs(Math.hypot(...direction)-1)<1e-4);
+  }
+  assert.ok(evolution.births.every(t=>t>=150 && t<=550));
+  assert.equal(angularSpread(1),1);
 });

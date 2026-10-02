@@ -2,6 +2,7 @@ import type { Catalogue } from './catalog';
 import { conditions, smoothstep, thermalRGB } from './cosmology';
 import type { CmbMap } from './cmb';
 import { buildStructure } from './structure';
+import { buildSkyEvolution } from './sky-evolution';
 
 const starVertex = `
 attribute vec3 a_position;
@@ -10,24 +11,37 @@ attribute vec3 a_colour;
 attribute float a_depth;
 attribute vec3 a_target;
 attribute float a_cmb;
+attribute vec4 a_skySeed;
+attribute float a_birth;
 uniform vec3 u_right, u_up, u_forward;
 uniform float u_aspect, u_tanFov, u_pixelRatio, u_flux, u_population;
 uniform float u_spatial, u_scale, u_cameraDistance, u_formation, u_seedCloud;
+uniform float u_timeMyr, u_evolve;
 varying vec3 v_colour;
 varying float v_brightness;
 void main() {
   vec3 initial = a_position*a_depth*0.45;
   vec3 formed = a_target*u_scale;
-  vec3 position = mix(a_position,mix(initial,formed,u_formation),u_spatial);
+  vec3 seed=normalize(a_skySeed.xyz), final=normalize(a_position);
+  float cosine=clamp(dot(seed,final),-1.0,1.0);
+  float sine=length(cross(seed,final)), theta=atan(sine,cosine);
+  vec3 tangent=(final-seed*cosine)/max(sine,0.000001);
+  float spread=0.12+0.88*pow(u_scale,a_skySeed.w);
+  vec3 skyPosition=seed*cos(theta*spread)+tangent*sin(theta*spread);
+  // Use the catalogue vector directly at today's endpoint, without rounding
+  // through spherical interpolation or any synthetic cluster transformation.
+  if(u_scale>=1.0 || sine<0.000001) skyPosition=a_position;
+  vec3 position = mix(skyPosition,mix(initial,formed,u_formation),u_spatial);
   float z = dot(position, u_forward) + u_spatial*u_cameraDistance;
   gl_Position = vec4(dot(position,u_right)/u_tanFov/u_aspect, dot(position,u_up)/u_tanFov, z-0.001, z);
   float flux = pow(10.0, -0.4*(a_magnitude-5.0)) * u_flux;
-  float skySize=clamp(1.4+3.1*pow(flux,0.25),1.5,16.0);
+  float born=mix(1.0,smoothstep(a_birth,a_birth+50.0,u_timeMyr),u_evolve);
+  float skySize=mix(1.2,clamp(1.4+3.1*pow(flux,0.25),1.5,mix(4.0,16.0,u_scale)),born);
   float spatialSize=mix(1.2,clamp(0.65+0.65*pow(flux,0.25),0.9,2.8),u_population);
   gl_PointSize=mix(skySize,spatialSize,u_spatial)*u_pixelRatio;
   vec3 cloudColour=mix(vec3(0.15,0.55,1.0),vec3(1.0,0.40,0.12),a_cmb);
-  float cloud=(1.0-u_formation)*u_seedCloud*u_spatial*0.035;
-  float starlight=(1.0-exp(-flux*0.95))*u_population*mix(1.0,0.045,u_spatial);
+  float cloud=(1.0-u_formation)*u_seedCloud*mix(0.025,0.035,u_spatial);
+  float starlight=(1.0-exp(-flux*0.95))*mix(born,u_population,u_spatial)*mix(1.0,0.045,u_spatial);
   v_colour=mix(cloudColour,a_colour,starlight/max(0.00001,starlight+cloud));
   v_brightness=starlight+cloud;
   if (z <= 0.01 || v_brightness <= 0.0) gl_Position = vec4(2.0,2.0,2.0,1.0);
@@ -256,7 +270,8 @@ export class SkyRenderer {
     this.cmb=cmb;
     for (const buffer of this.buffers) this.gl.deleteBuffer(buffer);
     const structure=buildStructure(catalogue,cmb);
-    this.buffers = [this.buffer(catalogue.positions), this.buffer(catalogue.magnitudes), this.buffer(catalogue.colours),this.buffer(structure.depths),this.buffer(structure.targets),this.buffer(structure.temperatures)];
+    const sky=buildSkyEvolution(catalogue,cmb);
+    this.buffers = [this.buffer(catalogue.positions), this.buffer(catalogue.magnitudes), this.buffer(catalogue.colours),this.buffer(structure.depths),this.buffer(structure.targets),this.buffer(structure.temperatures),this.buffer(sky.motion),this.buffer(sky.births)];
     const positions=new Float32Array(this.galaxyCount*3);
     for(let i=0;i<this.galaxyCount;i++) {
       const centre=structure.centres[i%structure.centres.length];
@@ -311,7 +326,7 @@ export class SkyRenderer {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D,this.cmbTexture);
     gl.uniform1i(this.background.uniform('u_cmb'),0);
-    gl.uniform1f(this.background.uniform('u_cmbOpacity'),showCmb && this.cmb ? 1-smoothstep(10e6,350e6,age) : 0);
+    gl.uniform1f(this.background.uniform('u_cmbOpacity'),showCmb && this.cmb ? 1-smoothstep(0.5e6,2e6,age) : 0);
     this.attribute(this.background,'a_position',this.triangle,2);
     gl.drawArrays(gl.TRIANGLES,0,3);
     if (!this.catalogue) return;
@@ -323,15 +338,19 @@ export class SkyRenderer {
     gl.uniform1f(this.stars.uniform('u_population'),population ? state.population : 1);
     gl.uniform1f(this.stars.uniform('u_spatial'),Number(spatial));
     gl.uniform1f(this.stars.uniform('u_scale'),state.a);
+    gl.uniform1f(this.stars.uniform('u_timeMyr'),age/1e6);
+    gl.uniform1f(this.stars.uniform('u_evolve'),Number(population));
     gl.uniform1f(this.stars.uniform('u_cameraDistance'),this.cameraDistance);
     gl.uniform1f(this.stars.uniform('u_formation'),formation);
-    gl.uniform1f(this.stars.uniform('u_seedCloud'),showCmb?smoothstep(10e6,150e6,age):0);
+    gl.uniform1f(this.stars.uniform('u_seedCloud'),showCmb?smoothstep(150e6,350e6,age):0);
     this.attribute(this.stars,'a_position',this.buffers[0],3);
     this.attribute(this.stars,'a_magnitude',this.buffers[1],1);
     this.attribute(this.stars,'a_colour',this.buffers[2],3);
     this.attribute(this.stars,'a_depth',this.buffers[3],1);
     this.attribute(this.stars,'a_target',this.buffers[4],3);
     this.attribute(this.stars,'a_cmb',this.buffers[5],1);
+    this.attribute(this.stars,'a_skySeed',this.buffers[6],4);
+    this.attribute(this.stars,'a_birth',this.buffers[7],1);
     gl.drawArrays(gl.POINTS,0,this.catalogue.count);
     if(spatial) {
       common(this.galaxies);

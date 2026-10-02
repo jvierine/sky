@@ -17,6 +17,7 @@
         <button id="reset" class="quiet" title="Reset viewing direction">Reset view <span>↺</span></button>
         <button id="about" class="quiet">Model & sources <span>↗</span></button>
         <a class="source-link" href="https://github.com/jvierine/sky" target="_blank" rel="noopener">Source <span>↗</span></a>
+        <button id="toggle-exposure" class="icon-button" aria-label="Exposure" aria-expanded="false" aria-controls="view-tools" title="Exposure">☼</button>
         <button id="fullscreen" class="icon-button" aria-label="Toggle fullscreen" title="Fullscreen">⛶</button>
       </nav>
     </header>
@@ -28,11 +29,11 @@
         <p id="model-label" class="model-label">Tycho-2 sky · measured J2000 positions and Vₜ magnitudes</p>
       </section>
       <section class="readouts" aria-label="Cosmic conditions">
-        <div><span class="readout-label">AGE OF THE UNIVERSE</span><strong id="age">13.8 <small>billion years</small></strong></div>
-        <div><span class="readout-label">BACKGROUND TEMPERATURE</span><strong id="temperature">2.73 <small>K</small></strong></div>
-        <div><span class="readout-label">SCALE FACTOR</span><strong id="scale">1.000 <small>a</small></strong></div>
+        <div><span class="readout-label">Age</span><strong id="age">13.8 <small>billion years</small></strong></div>
+        <div><span class="readout-label">CMB</span><strong id="temperature">2.73 <small>K</small></strong></div>
+        <div><span class="readout-label">Scale factor</span><strong id="scale">1.000 <small>a</small></strong></div>
       </section>
-      <div class="view-tools">
+      <div id="view-tools" class="view-tools" hidden>
         <div class="view-caption"><span class="crosshair">＋</span><span>DRAG TO EXPLORE <span class="separator">/</span> SCROLL TO ZOOM</span><span id="fov">80°</span></div>
 
         <div class="exposure-control"><label for="exposure">EXPOSURE</label><input id="exposure" type="range" min="-3" max="3" step="0.1" value="0" /><output id="exposure-value" for="exposure">0 EV</output></div>
@@ -47,29 +48,30 @@
           <div id="age-axis" class="axis-ticks secondary-axis" aria-label="Time after the Big Bang in Gyr"></div>
           <div class="axis-caption secondary-caption"><span>TIME AFTER BIG BANG <span class="axis-unit">(Gyr)</span></span><span>ΛCDM</span></div>
         </div>
-        <div id="epochs" class="epoch-buttons" aria-label="Choose a cosmic epoch"></div>
+        <button id="epoch-menu" class="epoch-menu" aria-expanded="false" aria-controls="epochs">Epochs ▴</button>
+        <div id="epochs" class="epoch-buttons" aria-label="Choose a cosmic epoch" hidden></div>
         <div class="timeline-footer"><span id="catalog-status"><span class="status-dot"></span> Loading Tycho-2 catalogue…</span><span id="sky-state">Visible light · perspective view</span></div>
       </section>
     </main>
     <dialog id="model-dialog">
       <div class="dialog-heading"><span class="eyebrow">BEHIND THE SKY</span><button id="close-model" class="icon-button" aria-label="Close model details">✕</button></div>
       <h2>A sky to think with.</h2>
-      <p>The default planet sky view renders the measured Tycho-2 directions and V<sub>T</sub> magnitudes. At a = 1 it is the present-day catalogue sky seen from a hypothetical planet, without synthetic clusters or galaxy sprites. Rewind to see the observed WMAP microwave field fade into a schematic stellar population, ending at Tycho. Earlier populations are a visual approximation.</p>
+      <p>The default planet sky view evolves toward the measured Tycho-2 directions and V<sub>T</sub> magnitudes. At a = 1 it is the present-day catalogue sky seen from a hypothetical planet, without synthetic clusters or galaxy sprites. Rewind to see the observed WMAP microwave field fade into darkness, followed by individual star births. Stars emerge in patches distributed around the observer and move apart as a grows, ending exactly at Tycho. Earlier populations and angular motion are visual approximations.</p>
       <p>The optional external 3D model assigns illustrative depths and clustered positions to stellar tracers and adds 900 galaxy tracers. It demonstrates expansion from an external camera; it is not the sky seen from Earth. “Today” returns to the Tycho sky.</p>
       <div class="mode-switch" role="group" aria-label="View mode"><button id="view-sky" aria-pressed="true">Planet sky</button><button id="view-space" aria-pressed="false">External 3D model</button></div>
       <div class="model-options">
-        <label><input id="cmb-map" type="checkbox" checked /> WMAP seed field & diffuse matter <small>Observed microwave anisotropies, enhanced in false colour. The transition to 3D clusters is illustrative.</small></label>
-        <label><input id="population" type="checkbox" checked /> Evolve the stellar population <small>A schematic fade-in from 150–600 million years; no stars during the dark ages.</small></label>
+        <label><input id="cmb-map" type="checkbox" checked /> WMAP seed field & diffuse matter <small>Enhanced false colour near recombination only. The dark ages remain dark; WMAP also seeds illustrative formation patches.</small></label>
+        <label><input id="population" type="checkbox" checked /> Evolve the stellar population <small>Individual schematic birth times from 150–550 million years, with 50-million-year fade-ins. No stars during the dark ages.</small></label>
         <label><input id="background" type="checkbox" checked /> Show the thermal background <small>A Planck spectrum cooling as T = 2.7255 / a, shown in visible light.</small></label>
         <label><input id="grid" type="checkbox" /> Celestial coordinate grid</label>
       </div>
       <h3>The expansion approximation</h3>
-      <p>Imagine a fixed set of sources moving with the expansion. Scale their mean separation by <em>a</em>, density by <em>a⁻³</em>, and flux by <em>a⁻²</em>. After the formation morph, every 3D tracer follows <em>x(t) = a(t) x₀</em> with a fixed external camera, so separation is visible. Smooth transitions and playback animate that motion. The Sky view places the observer at the origin; isotropic scaling then preserves angles.</p>
-      <dl class="model-stats"><div><dt>Mean separation / today</dt><dd id="distance-ratio">1.000</dd></div><div><dt>Density / today</dt><dd id="density-ratio">1.000</dd></div><div><dt>Flux per source / today</dt><dd id="flux-ratio">1.000</dd></div><div><dt>Cosmological redshift</dt><dd id="redshift">0</dd></div><div><dt>Background peak wavelength</dt><dd id="peak-wavelength">1.06 mm</dd></div></dl>
-      <p class="fine-print">Gravitationally bound stars and galaxies do not follow cosmic expansion. This model expands all tracers together after the illustrative formation phase. The toy flux law omits stellar evolution, cosmological dimming, dust, and a true past light cone. Tycho V<sub>T</sub> magnitudes are measured; star colours are illustrative because this subset has no colour data. Coloured early points represent schematic matter, not stars.</p>
+      <p>Imagine a fixed set of sources moving with the expansion. Scale their mean separation by <em>a</em>, density by <em>a⁻³</em>, and flux by <em>a⁻²</em>. After the formation morph, every 3D tracer follows <em>x(t) = a(t) x₀</em> with a fixed external camera, so separation is visible. Smooth transitions and playback animate that motion. Uniform physical expansion preserves angles for an observer at the origin. To show the requested increase in apparent separation, the planet view adds a phenomenological angular expansion: 1,536 irregular patches cover the whole sphere, displaced by WMAP temperature variations and deterministic jitter. Each star follows a great-circle path from its patch toward its measured Tycho direction. Angular offset from the patch scales as 0.12 + 0.88a<sup>β</sup>, with patch-dependent β between 0.3 and 1.5 to vary the dispersal rate; at a = 1 the catalogue vector is used directly. This is not a physical prediction that bound stars expand.</p>
+      <dl class="model-stats"><div><dt>Reference angular offset / today</dt><dd id="angular-ratio">1.000</dd></div><div><dt>Mean separation / today</dt><dd id="distance-ratio">1.000</dd></div><div><dt>Density / today</dt><dd id="density-ratio">1.000</dd></div><div><dt>Flux per source / today</dt><dd id="flux-ratio">1.000</dd></div><div><dt>Cosmological redshift</dt><dd id="redshift">0</dd></div><div><dt>Background peak wavelength</dt><dd id="peak-wavelength">1.06 mm</dd></div></dl>
+      <p class="fine-print">Gravitationally bound stars and galaxies do not follow cosmic expansion. This model expands all tracers together after the illustrative formation phase. The toy flux law omits stellar evolution, cosmological dimming, dust, and a true past light cone. Tycho V<sub>T</sub> magnitudes are measured; star colours are illustrative because this subset has no colour data. Diffuse coloured formation points appear only after the first-star epoch; the dark ages contain no visible stellar or matter emission.</p>
       <h3>Observed seeds, illustrative evolution</h3>
       <p>The coloured seed field is the observed WMAP nine-year ILC temperature map, in Galactic coordinates, reprojected into the viewing direction <a class="inline-cite" href="https://lambda.gsfc.nasa.gov/product/wmap/dr5/ilc_map_info.html" target="_blank" rel="noopener">[1]</a>. The display enhances ΔT over ±200 µK; these are microwave temperature differences, not visible colours or a direct matter-density measurement.</p>
-      <p>WMAP angular patches seed a repeatable 3D morph into diffuse matter, stellar tracers, and galaxy groups. The animation illustrates growth from primordial fluctuations <a class="inline-cite" href="https://arxiv.org/abs/1102.4638" target="_blank" rel="noopener">[4]</a>; it is not an N-body calculation, nor a reconstruction of which observed patch formed which galaxy. The shell-to-volume projection, cluster depths, collapse paths, and galaxy glyphs are artistic choices.</p>
+      <p>WMAP temperature variations seed distributed formation patches in the planet view and clustered tracers in the optional external model. The microwave false-colour map fades by two million years; the visible dark-age sky stays dark until the first stars appear. The animation illustrates growth from primordial fluctuations <a class="inline-cite" href="https://arxiv.org/abs/1102.4638" target="_blank" rel="noopener">[4]</a>; it is not an N-body calculation, nor a reconstruction of which observed patch formed which galaxy. The shell-to-volume projection, cluster depths, collapse paths, and galaxy glyphs are artistic choices.</p>
       <h3>Cosmology & catalogue</h3>
       <p>The expansion uses Planck 2018 base-ΛCDM values H₀ = 67.4 km/s/Mpc and Ω<sub>m</sub> = 0.315 <a class="inline-cite" href="https://arxiv.org/abs/1807.06209" target="_blank" rel="noopener">[2]</a>. The simplified flat model includes Ω<sub>r</sub> = 0.000092 and integrates the Friedmann equation to find cosmic age. The 120,530-star Tycho-2 V<sub>T</sub> &lt; 9 subset comes from WISC/AIDA, including both supplements <a class="inline-cite" href="https://archive.eso.org/ASTROM/TYC-2/docs/aa2000a.pdf" target="_blank" rel="noopener">[5]</a>.</p>
       <h3 id="references">References & data</h3>

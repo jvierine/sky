@@ -2,6 +2,7 @@ import './style.css';
 import { loadCatalogue } from './catalog';
 import { loadCmb } from './cmb';
 import { SkyRenderer } from './renderer';
+import { angularSpread } from './sky-evolution';
 import { ageAtScaleFactor, ageFromSlider, conditions, epochs, formatAge, MIN_SCALE, scaleFactorAtAge, scalePosition, sliderFromAge, TODAY_YEARS } from './cosmology';
 
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -40,7 +41,7 @@ for (const [i, epoch] of epochs.entries()) {
   button.className = 'epoch-button';
   button.dataset.index = String(i);
   button.innerHTML = `<span class="epoch-number">0${i+1}</span><span class="epoch-name">${epoch.name}</span><span class="epoch-age">${epoch.short}</span>`;
-  button.addEventListener('click', () => { setPlaying(false); selectedAge = epoch.age; scaleValue = scaleFactorAtAge(epoch.age); scaleSlider.value = String(scaleValue); if(i===5 && viewMode!=='sky') chooseView('sky'); update(); });
+  button.addEventListener('click', () => { setPlaying(false); selectedAge = epoch.age; scaleValue = scaleFactorAtAge(epoch.age); scaleSlider.value = String(scaleValue); if(i===5 && viewMode!=='sky') chooseView('sky'); get('epochs').hidden=true; get('epoch-menu').setAttribute('aria-expanded','false'); update(); });
   get('epochs').append(button);
 }
 function currentAge() { return selectedAge ?? ageAtScaleFactor(scaleValue); }
@@ -59,7 +60,7 @@ function update() {
   const epoch = epochs[index];
   get('epoch-title').textContent = viewMode==='space' && index===5 ? 'A universe in motion.' : epoch.title;
   get('epoch-description').textContent = cmbMap.checked && index===0 ? 'WMAP’s observed microwave fluctuations: the seeds of structure. Move through time to watch a schematic universe form.' : viewMode==='space' && index===5 ? 'Schematic galaxy groups drift apart with cosmic expansion. Drag to orbit; rewind the scale factor to watch their beginnings.' : epoch.description;
-  get('age').innerHTML = `${formatted.value} <small>${formatted.unit}</small>`;
+  get('age').innerHTML = `${formatted.value} <small>${age>=1e9?'Gyr':age>=1e6?'Myr':'yr'}</small>`;
   get('temperature').innerHTML = `${state.temperature >= 100 ? state.temperature.toFixed(0) : state.temperature.toFixed(2)} <small>K</small>`;
   get('scale').innerHTML = `${state.a < 0.01 ? state.a.toFixed(5) : state.a.toFixed(3)} <small>a</small>`;
   get('epoch-index').textContent = `0${index+1} / 06`;
@@ -75,9 +76,10 @@ function update() {
   get('exposure-value').textContent = `${Number(exposure.value)>0?'+':''}${Number(exposure.value).toFixed(1)} EV`;
   const starsAbsent = population.checked && state.population === 0;
   const hiddenGlow = background.checked && state.temperature > 1500;
-  const seedField=cmbMap.checked && age<350e6;
+  const seedField=cmbMap.checked && age<2e6;
   get('sky-state').textContent = seedField ? 'WMAP seed field → schematic matter & stars' : viewMode==='space' ? '3D model · illustrative cluster depths' : starsAbsent ? hiddenGlow ? 'Visible light · a sky filled with primordial glow' : 'Visible light · no stars yet' : !population.checked ? 'Fixed population · counterfactual Tycho sky' : state.a===1 ? 'Tycho-2 catalogue · present-day sky' : 'Tycho-2 directions · schematic early population';
-  get('model-label').textContent=viewMode==='space' ? 'Schematic 3D model · synthetic galaxy groups and depths' : 'Tycho-2 sky · measured J2000 positions and Vₜ magnitudes';
+  get('model-label').textContent=viewMode==='space' ? 'External 3D model' : state.a===1 ? 'Measured Tycho-2 sky' : starsAbsent ? seedField ? 'WMAP · enhanced microwave colour' : 'Dark ages · no visible stars' : 'Illustrative angular expansion';
+  get('angular-ratio').textContent=angularSpread(state.a).toFixed(3);
   get('cmb-legend').hidden=!seedField;
   document.body.dataset.epoch = epoch.name;
   document.body.dataset.view=viewMode;
@@ -98,6 +100,16 @@ play.addEventListener('click', () => {
   setPlaying(!playing);
 });
 get('about').addEventListener('click', () => dialog.showModal());
+get('epoch-menu').addEventListener('click',()=>{
+  const open=get('epoch-menu').getAttribute('aria-expanded')!=='true';
+  get('epoch-menu').setAttribute('aria-expanded',String(open));
+  get('epochs').hidden=!open;
+});
+get('toggle-exposure').addEventListener('click',()=>{
+  const panel=get('view-tools');
+  panel.hidden=!panel.hidden;
+  get('toggle-exposure').setAttribute('aria-expanded',String(!panel.hidden));
+});
 get('close-model').addEventListener('click', () => dialog.close());
 dialog.addEventListener('click', e => { if (e.target === dialog) { const rect = dialog.getBoundingClientRect(); if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom) dialog.close(); } });
 get('reset').addEventListener('click', () => renderer?.reset());

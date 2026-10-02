@@ -109,57 +109,78 @@ dialog .fine-print { font-size: 15px; color: #a5bac5; }
 .references small { display: block; font-size: 15px; line-height: 1.6; margin-top: 6px; color: #adc1cb; }
 .github-footer { display: block; border-top: 1px solid var(--line); padding-top: 18px; color: #b2c9d3; font-size: 15px; }
 #error { position: fixed; z-index: 10; top: 96px; left: 50%; transform: translateX(-50%); max-width: 90vw; background: #381e1a; color: #ffe4d3; border: 1px solid #9c6651; border-radius: 6px; font-size: 16px; padding: 16px 20px; }
-@media (max-width:1100px), (max-height:750px) {
-  body { height: auto; overflow-y: auto; }
-  main { height: auto; min-height: calc(100svh - 88px); display: flex; flex-direction: column; padding: 24px; gap: 24px; }
-  .epoch-copy, .readouts, .view-tools, .timeline, .cmb-legend { position: relative; inset: auto; }
-  .epoch-copy { max-width: 600px; }
-  .readouts { justify-content: space-between; max-width: 700px; }
-  .readouts > div { flex: 1; }
-  .view-tools { margin-top: 100px; order: 3; }
-  .cmb-legend { order: 2; margin-left: auto; margin-bottom: -70px; }
-  .timeline { order: 4; width: 100%; }
-  .wordmark-sub { display: none; }
-  .epoch-button { grid-template-columns: 1fr; }
-  .epoch-number { display: none; }
-  .timeline-footer { flex-wrap: wrap; }
+/* The sky is the interface; controls stay in a compact overlay on all screens. */
+body { height: 100svh; overflow: hidden; }
+.masthead { height: 64px; padding: 10px 24px; border-bottom: 0; }
+.wordmark { font-size: 24px; }
+.wordmark-sub { display: none; }
+nav { gap: 16px; }
+main { height: calc(100svh - 64px); min-height: 0; display: block; padding: 0; }
+.epoch-copy { position: absolute; top: 16px; left: 24px; right: auto; max-width: 480px; }
+.epoch-copy .eyebrow, .epoch-copy .description { display: none; }
+.epoch-copy h1 { font-size: 28px; margin: 0; letter-spacing: -.5px; }
+.model-label { font-size: 14px; margin-top: 6px; }
+.readouts { position: absolute; top: 16px; right: 24px; left: auto; gap: 24px; max-width: none; }
+.readouts > div { border: 0; padding: 0; }
+.readout-label { font-size: 14px; margin-bottom: 3px; }
+.readouts strong { font-size: 20px; }
+.readouts small { display: inline; font-size: 14px; margin: 0; }
+.view-tools { position: absolute; inset: 12px 24px auto auto; margin: 0; z-index: 5; }
+.view-tools[hidden] { display: none; }
+.view-caption { display: none; }
+.exposure-control { background: #0c1720f2; }
+.cmb-legend { position: absolute; top: 98px; right: 24px; width: 240px; margin: 0; }
+.cmb-legend small { display: none; }
+.timeline { position: absolute; left: 50%; right: auto; bottom: 16px; transform: translateX(-50%); width: min(900px,calc(100% - 32px)); display: flex; align-items: center; gap: 16px; padding: 12px 16px; background: #09121cbd; backdrop-filter: blur(10px); border-radius: 8px; }
+.timeline-heading { flex: 0 0 44px; }
+.timeline-heading > div:first-child, #epoch-index, .play-button span { display: none; }
+.play-button { padding: 0; width: 44px; height: 44px; font-size: 20px; }
+.timeline-track { position: relative; flex: 1; margin: 0 0 0 30px; min-width: 0; }
+.axis-caption { display: none; }
+.axis-ticks { font-size: 14px; height: 20px; line-height: 20px; }
+.primary-axis:before { content: 'a'; position: absolute; left: -24px; font-family: Georgia,serif; font-style: italic; }
+.secondary-axis:before { content: 'Gyr'; position: absolute; left: -34px; }
+.primary-axis .axis-tick:after { display: none; }
+#scale-factor { margin: 9px 0 0; height: 4px; }
+.secondary-axis { margin-top: 9px; }
+.timeline-footer { display: none; }
+.epoch-menu { flex: 0 0 auto; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 5px; }
+.epoch-buttons { position: absolute; bottom: calc(100% + 12px); left: 0; right: 0; margin: 0; padding: 12px; background: #101b25f5; border: 1px solid var(--line); border-radius: 8px; grid-template-columns: repeat(3,1fr); box-shadow: 0 8px 32px #0008; }
+.epoch-buttons[hidden] { display: none; }
+.epoch-button { grid-template-columns: 1fr; }
+.epoch-number { display: none; }
+@media (max-width:800px) {
+  .source-link, #reset { display: none; }
+  .epoch-copy { left: 20px; }
+  .readouts { top: 80px; left: 20px; right: 20px; justify-content: flex-start; gap: 28px; }
+  .readouts > div { flex: 0 1 auto; }
+  .cmb-legend { top: 145px; right: 20px; }
 }
 @media (max-width:560px) {
-  .masthead { height: 72px; padding: 12px 16px; }
-  .wordmark { font-size: 24px; gap: 8px; }
-  .star-mark { font-size: 34px; }
-  nav { gap: 8px; font-size: 15px; }
-  #reset, .source-link { display: none; }
-  main { min-height: calc(100svh - 72px); padding: 20px 16px 16px; gap: 20px; }
-  h1 { font-size: 38px; }
-  .description { font-size: 16px; }
-  .eyebrow { font-size: 14px; letter-spacing: .4px; }
-  .readouts { gap: 12px; }
-  .readouts > div { padding-left: 0; border: 0; }
-  .readout-label { font-size: 14px; margin-bottom: 6px; }
-  .readouts strong { font-size: 25px; }
-  .readouts small { font-size: 14px; }
-  .view-tools { flex-wrap: wrap; margin-top: 90px; gap: 12px; }
-  .view-caption { width: 100%; font-size: 14px; }
-  .crosshair { display: none; }
-  .exposure-control { width: 100%; justify-content: space-between; }
-  .exposure-control input { flex: 1; max-width: 160px; }
-  .cmb-legend { width: 260px; }
-  .timeline { padding: 16px 12px 0; }
-  .timeline-heading { align-items: flex-start; gap: 10px; }
-  .timeline-heading p { font-size: 22px; }
-  #epoch-index { display: none; }
-  .play-button { font-size: 15px; padding: 12px; }
-  .play-button span { max-width: 65px; white-space: normal; }
-  .axis-caption { font-size: 14px; }
-  .axis-ticks { font-size: 14px; }
-  .secondary-caption { font-size: 14px; }
-  .epoch-buttons { grid-template-columns: repeat(3,1fr); gap: 4px; }
-  .epoch-button { padding: 10px 5px; }
-  .epoch-name { font-size: 15px; }
+  .masthead { height: 60px; padding: 8px 16px; }
+  .wordmark { font-size: 22px; gap: 6px; }
+  .star-mark { font-size: 30px; }
+  nav { gap: 4px; font-size: 15px; }
+  .icon-button { width: 36px; height: 40px; }
+  #fullscreen { display: none; }
+  main { height: calc(100svh - 60px); }
+  .epoch-copy { top: 10px; left: 16px; right: 16px; }
+  .epoch-copy h1 { font-size: 24px; }
+  .model-label { font-size: 14px; }
+  .readouts { top: 76px; left: 16px; right: 16px; gap: 20px; }
+  .readouts strong { font-size: 18px; }
+  .readout-label, .readouts small { font-size: 14px; }
+  .readouts > div { flex: 1; }
+  .cmb-legend { top: 144px; right: 16px; width: 220px; }
+  .view-tools { top: 132px; right: 16px; left: 16px; }
+  .exposure-control { width: 100%; }
+  .timeline { bottom: max(12px,env(safe-area-inset-bottom)); width: calc(100% - 24px); gap: 8px; padding: 12px; }
+  .timeline-track { margin-left: 26px; }
+  .epoch-menu { font-size: 15px; padding: 10px 8px; }
+  .axis-tick:not(.first):not(.last) { display: none; }
+  .epoch-name { font-size: 16px; }
   .epoch-age { font-size: 14px; }
-  .timeline-footer { flex-direction: column; gap: 4px; font-size: 14px; }
-  dialog { padding: 20px; }
-  dialog h2 { font-size: 34px; }
 }
-@media (prefers-reduced-motion:reduce) { * { transition: none !important; } }
+
+@media (max-width:560px) { dialog { padding:20px; } dialog h2 { font-size:34px; } }
+@media (prefers-reduced-motion:reduce) { * { transition:none !important; } }

@@ -10,15 +10,20 @@ linear scale-factor `a` slider. Its secondary axis shows time after the Big Bang
 Gyr, integrated from the Friedmann equation. Playback uses logarithmic age so the
 early epochs remain visible. Smooth transitions animate expansion between selections.
 
-**Planet sky** uses all 120,530 measured Tycho directions on a celestial sphere. It
-draws no synthetic galaxies or clusters. “Today” always returns to this view. The
+**Planet sky** surrounds the observer with stars. 1,536 formation patches cover the
+entire sphere, gently shifted using observed WMAP temperature variations. Stars
+appear at individual schematic birth times and move apart along great-circle paths
+as `a` grows. The exact 120,530 measured Tycho vectors constrain the present-day
+endpoint. It draws no synthetic galaxy sprites. “Today” returns to this view. The
 optional **External 3D model**, available only inside **Model & sources**, assigns
 illustrative depths and cluster positions and adds 900 galaxy tracers to demonstrate
 expansion from outside a volume. It is explicitly a separate model, not a planet sky.
 The canvas supports arrow keys and +/−; exposure adjusts visibility. Scientific
 citations and switches for WMAP, stellar populations, thermal light and the sky
-grid are in the same dialog. Controls and secondary labels use at least 14px text;
-phone layouts scroll to preserve readable type instead of shrinking controls.
+grid are in the same dialog. Controls and secondary labels use at least 14px text.
+The slider occupies a slim bottom bar on phones and desktops, without page scrolling;
+“Epochs” opens presets, and the sun button reveals exposure. Touch drag and pinch work
+on the canvas. Both axes retain their endpoint labels on small phones.
 
 ## Run and deploy
 
@@ -48,7 +53,15 @@ old hashed assets and uploading HTML last.
 The requested first approximation scales fixed source separations by `a`, number
 density by `a⁻³`, and per-source flux by `a⁻²` (`Δm = 5 log₁₀(a)`). In 3D, after the
 formation morph, positions follow `x(t) = a(t) x₀` with a fixed external camera.
-Isotropic expansion preserves directions in the Sky view.
+Uniform physical expansion preserves sky angles. The requested apparent separation
+is therefore an explicit visual model, not a consequence of the Friedmann equation.
+Each star’s angular distance from its formation patch follows `0.12 + 0.88a^β` times
+its measured final offset, with patch-dependent β between 0.3 and 1.5. Deterministic
+jitter breaks the regular seed scaffolding; differing dispersal rates avoid identical
+patch silhouettes. These rates are illustrative choices. Spherical interpolation keeps every source on the
+celestial sphere and increases local neighbour separation continuously. At `a=1`,
+the GPU uses the original Tycho vector directly. Patch assignment is independent of
+the camera, so orbiting, zooming or panning cannot change the evolution.
 
 Flat ΛCDM uses Planck 2018 values `H₀=67.4 km/s/Mpc`, `Ωm=0.315`, plus simplified
 radiation `Ωr=0.000092` and `ΩΛ=1−Ωm−Ωr`. Numerical integration gives an age near
@@ -59,9 +72,12 @@ three-channel colour response.
 The WMAP ILC map is observed data in Galactic coordinates with a 1° beam, reprojected
 into the viewing direction. False colour enhances temperature differences over
 ±200 µK. Temperature anisotropy is **not a direct matter-density map**. Hot angular
-patches seed deterministic illustrative cluster centres. Diffuse points emerge as
-the map fades, positions morph toward clusters over 30 Myr–1.3 Gyr, stars fade in
-from 150–600 Myr and galaxy sprites from 180 Myr–1 Gyr. These interpolation choices
+variations seed deterministic all-sky formation patches. The false-colour map fades
+between 0.5 and 2 Myr. The visible dark-age sky then stays dark, with no matter glow
+or stars. Individual star births begin between 150 and 550 Myr and fade in over
+50 Myr; diffuse formation tracers become visible only after 150 Myr. The separate
+external model retains its 30 Myr–1.3 Gyr position morph and 180 Myr–1 Gyr galaxy
+fade. These interpolation choices
 are artistic, not outputs of a structure-formation calculation. The WMAP product
 has residual foregrounds and small-scale uncertainty; see its product documentation.
 
