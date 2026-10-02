@@ -60,8 +60,7 @@ void main() {
   q.y /= 0.35+0.6*v_seed;
   float r=length(q);
   if(r>1.0) discard;
-  float spiral=0.65+0.35*sin(atan(q.y,q.x)*2.0-r*16.0+v_seed*12.0);
-  float disc=exp(-r*4.0)*spiral;
+  float disc=exp(-r*r*12.0);
   float core=exp(-r*r*95.0);
   vec3 colour=mix(v_colour,vec3(1.0,0.93,0.76),core);
   gl_FragColor=vec4(colour,(disc*0.75+core*0.6)*v_opacity);
@@ -128,8 +127,8 @@ export class SkyRenderer {
   private triangle: WebGLBuffer;
   yaw = 1.4;
   pitch = 0.12;
-  fov = 60;
-  mode: 'space' | 'sky' = 'space';
+  fov = 80;
+  mode: 'space' | 'sky' = 'sky';
   cameraDistance = 10;
   dragging = false;
   private pointers = new Map<number, { x: number; y: number }>();

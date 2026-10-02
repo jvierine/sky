@@ -1,17 +1,76 @@
 import { test, expect } from '@playwright/test';
+test('default and Today show actual Tycho positions with no synthetic galaxy draw', async ({ page }) => {
+  await page.addInitScript(()=>{
+    const original=WebGLRenderingContext.prototype.drawArrays;
+    (window as any).pointDraws=[];
+    WebGLRenderingContext.prototype.drawArrays=function(mode,first,count){
+      if(mode===this.POINTS) (window as any).pointDraws.push(count);
+      original.call(this,mode,first,count);
+    };
+  });
+  await page.goto('./');
+  await expect(page.locator('body')).toHaveAttribute('data-ready','true');
+  await expect(page.locator('body')).toHaveAttribute('data-view','sky');
+  await expect(page.locator('#scale-factor')).toHaveValue('1');
+  const checkPositions=()=>page.locator('#sky').evaluate(async(canvas:HTMLCanvasElement)=>{
+    const response=await fetch('./data/tycho2_mag9.bin.gz');
+    const data=await response.arrayBuffer(), bytes=new Uint8Array(data);
+    const raw=bytes[0]===31 ? await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer():data;
+    const catalogue=new DataView(raw), count=catalogue.getUint32(8,true);
+    const gl=canvas.getContext('webgl')!,w=gl.drawingBufferWidth,h=gl.drawingBufferHeight;
+    const pixels=new Uint8Array(w*h*4);
+    gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+    // Independently project measured RA/Dec through the default 80° perspective.
+    const yaw=1.4,pitch=0.12,tan=Math.tan(40*Math.PI/180);
+    let visible=0,matched=0;
+    for(let i=0;i<count;i++) {
+      const offset=16+i*12,mag=catalogue.getFloat32(offset+8,true);
+      if(mag>=4) break;
+      const ra=catalogue.getFloat32(offset,true)*Math.PI/12,dec=catalogue.getFloat32(offset+4,true)*Math.PI/180;
+      const x=Math.cos(dec)*Math.cos(ra), y=Math.sin(dec), z=Math.cos(dec)*Math.sin(ra);
+      const depth=x*Math.cos(pitch)*Math.cos(yaw)+y*Math.sin(pitch)+z*Math.cos(pitch)*Math.sin(yaw);
+      if(depth<=0) continue;
+      const screenX=Math.round(w/2+(-x*Math.sin(yaw)+z*Math.cos(yaw))*h/(2*tan*depth));
+      const screenY=Math.round(h/2+(-x*Math.sin(pitch)*Math.cos(yaw)+y*Math.cos(pitch)-z*Math.sin(pitch)*Math.sin(yaw))*h/(2*tan*depth));
+      if(screenX<5||screenX>w-6||screenY<5||screenY>h-6)continue;
+      visible++;
+      let peak=0;
+      for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){
+        const p=((screenY+dy)*w+screenX+dx)*4;
+        peak=Math.max(peak,pixels[p],pixels[p+1],pixels[p+2]);
+      }
+      if(peak>50)matched++;
+    }
+    return {visible,matched,draws:(window as any).pointDraws};
+  });
+  const initial=await checkPositions();
+  expect(initial.visible).toBeGreaterThan(15);
+  expect(initial.matched/initial.visible).toBeGreaterThan(0.95);
+  expect(new Set(initial.draws)).toEqual(new Set([120530]));
+  await page.getByRole('button',{name:'01 Recombination'}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-settled','true');
+  await page.getByRole('button',{name:'06 Today'}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-settled','true');
+  const returned=await checkPositions();
+  expect(returned.matched).toBe(initial.matched);
+  expect(new Set(returned.draws)).toEqual(new Set([120530]));
+});
 test('catalogue, GPU, epochs, and viewing controls work', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto('./');
   await expect(page.locator('body')).toHaveAttribute('data-ready','true');
   await expect(page.locator('#catalog-status')).toContainText('120,530');
-  await page.getByRole('button',{name:'Sky',exact:true}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-view','sky');
   await page.getByRole('button',{name:'06 Today'}).click();
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   await page.getByRole('button',{name:'Model & sources'}).click();
   await page.locator('#cmb-map').uncheck();
   await page.getByRole('button',{name:'Close model details'}).click();
   await expect(page.locator('#epoch-title')).toHaveText('The sky we know.');
+  const controls=await page.locator('.view-tools').boundingBox();
+  const timeline=await page.locator('.timeline').boundingBox();
+  expect(controls!.y+controls!.height).toBeLessThan(timeline!.y);
   await page.screenshot({path:'test-results/today-desktop.png'});
   const pixelSignature = () => page.locator('#sky').evaluate((canvas:HTMLCanvasElement)=>{
     const gl=canvas.getContext('webgl')!;
@@ -94,6 +153,11 @@ test('observed CMB morphs smoothly into expanding structure, with scientific cit
     }
     return {bright,white,radius:Math.sqrt(radius/Math.max(1,bright)),chromatic,total:w*h,error:gl.getError()};
   });
+  await page.getByRole('button',{name:'01 Recombination'}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-settled','true');
+  await page.getByRole('button',{name:'Model & sources'}).click();
+  await page.getByRole('button',{name:'External 3D model',exact:true}).click();
+  await page.getByRole('button',{name:'Close model details'}).click();
   const cmb=await signature();
   expect(cmb.chromatic).toBeGreaterThan(cmb.total*0.3);
   expect(cmb.white).toBe(0);
@@ -105,13 +169,16 @@ test('observed CMB morphs smoothly into expanding structure, with scientific cit
   await page.getByRole('slider',{name:'Scale factor a'}).fill('0.4');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   const compact=await signature();
-  await page.getByRole('button',{name:'06 Today'}).click();
+  await page.getByRole('slider',{name:'Scale factor a'}).fill('0.8');
   await expect(page.locator('body')).toHaveAttribute('data-settled','true');
   const expanded=await signature();
   expect(expanded.radius).toBeGreaterThan(compact.radius*1.8);
   expect(expanded.bright).toBeGreaterThan(1000);
   expect(expanded.error).toBe(0);
-  await page.screenshot({path:'test-results/expansion-today-desktop.png'});
+  await page.getByRole('button',{name:'06 Today'}).click();
+  await expect(page.locator('body')).toHaveAttribute('data-view','sky');
+  await expect(page.locator('body')).toHaveAttribute('data-settled','true');
+  await page.screenshot({path:'test-results/tycho-endpoint-desktop.png'});
   await page.getByRole('button',{name:'Model & sources'}).click();
   const references=page.locator('.references > li');
   await expect(references).toHaveCount(6);
@@ -124,8 +191,11 @@ test('phone layout keeps controls usable and has no horizontal overflow', async 
   await page.setViewportSize({width:390,height:844});
   await page.goto('./');
   await expect(page.locator('body')).toHaveAttribute('data-ready','true');
+  await page.screenshot({path:'test-results/today-mobile.png',fullPage:true});
+  await page.locator('.epoch-button[data-index="5"]').scrollIntoViewIfNeeded();
   await expect(page.locator('.epoch-button[data-index="5"]')).toBeInViewport();
-  await page.screenshot({path:'test-results/wmap-mobile.png'});
+  const minimum=await page.locator('.epoch-name, .epoch-age, .axis-ticks, .description, .readout-label').evaluateAll(elements=>Math.min(...elements.map(e=>parseFloat(getComputedStyle(e).fontSize))));
+  expect(minimum).toBeGreaterThanOrEqual(14);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
   for (let i=0;i<6;i++) {
     await page.locator(`.epoch-button[data-index="${i}"]`).click();

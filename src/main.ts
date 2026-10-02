@@ -2,7 +2,7 @@ import './style.css';
 import { loadCatalogue } from './catalog';
 import { loadCmb } from './cmb';
 import { SkyRenderer } from './renderer';
-import { ageAtScaleFactor, ageFromSlider, conditions, epochs, formatAge, MIN_SCALE, MIN_YEARS, scaleFactorAtAge, scalePosition, sliderFromAge, smoothstep } from './cosmology';
+import { ageAtScaleFactor, ageFromSlider, conditions, epochs, formatAge, MIN_SCALE, scaleFactorAtAge, scalePosition, sliderFromAge, TODAY_YEARS } from './cosmology';
 
 const get = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const scaleSlider = get<HTMLInputElement>('scale-factor'), exposure = get<HTMLInputElement>('exposure');
@@ -12,9 +12,9 @@ const cmbMap=get<HTMLInputElement>('cmb-map');
 const play = get<HTMLButtonElement>('play');
 const canvas = get<HTMLCanvasElement>('sky');
 let renderer: SkyRenderer | undefined;
-let catalogueCount = 0, playing = false, scaleValue = MIN_SCALE, selectedAge: number | null = MIN_YEARS;
-let displayedScale=MIN_SCALE, viewMode:'space'|'sky'='space';
-scaleSlider.value=String(MIN_SCALE);
+let catalogueCount = 0, playing = false, scaleValue = 1, selectedAge: number | null = TODAY_YEARS;
+let displayedScale=1, viewMode:'space'|'sky'='sky';
+scaleSlider.value='1';
 let prevTime = performance.now();
 let needsRender = true;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -40,7 +40,7 @@ for (const [i, epoch] of epochs.entries()) {
   button.className = 'epoch-button';
   button.dataset.index = String(i);
   button.innerHTML = `<span class="epoch-number">0${i+1}</span><span class="epoch-name">${epoch.name}</span><span class="epoch-age">${epoch.short}</span>`;
-  button.addEventListener('click', () => { setPlaying(false); selectedAge = epoch.age; scaleValue = scaleFactorAtAge(epoch.age); scaleSlider.value = String(scaleValue); update(); });
+  button.addEventListener('click', () => { setPlaying(false); selectedAge = epoch.age; scaleValue = scaleFactorAtAge(epoch.age); scaleSlider.value = String(scaleValue); if(i===5 && viewMode!=='sky') chooseView('sky'); update(); });
   get('epochs').append(button);
 }
 function currentAge() { return selectedAge ?? ageAtScaleFactor(scaleValue); }
@@ -76,8 +76,8 @@ function update() {
   const starsAbsent = population.checked && state.population === 0;
   const hiddenGlow = background.checked && state.temperature > 1500;
   const seedField=cmbMap.checked && age<350e6;
-  get('sky-state').textContent = seedField ? 'WMAP seed field → schematic matter & stars' : viewMode==='space' ? '3D structure · illustrative cluster depths' : starsAbsent ? hiddenGlow ? 'Visible light · a sky filled with primordial glow' : 'Visible light · no stars yet' : !population.checked ? 'Fixed population · counterfactual Tycho sky' : 'Visible light · schematic stellar population';
-  get('model-label').textContent=viewMode==='space' ? 'WMAP observations → schematic structure formation · x = a x₀ after formation' : 'Tycho-2 directions · first-order sky approximation';
+  get('sky-state').textContent = seedField ? 'WMAP seed field → schematic matter & stars' : viewMode==='space' ? '3D model · illustrative cluster depths' : starsAbsent ? hiddenGlow ? 'Visible light · a sky filled with primordial glow' : 'Visible light · no stars yet' : !population.checked ? 'Fixed population · counterfactual Tycho sky' : state.a===1 ? 'Tycho-2 catalogue · present-day sky' : 'Tycho-2 directions · schematic early population';
+  get('model-label').textContent=viewMode==='space' ? 'Schematic 3D model · synthetic galaxy groups and depths' : 'Tycho-2 sky · measured J2000 positions and Vₜ magnitudes';
   get('cmb-legend').hidden=!seedField;
   document.body.dataset.epoch = epoch.name;
   document.body.dataset.view=viewMode;
@@ -85,13 +85,14 @@ function update() {
 scaleSlider.addEventListener('input', () => { setPlaying(false); selectedAge = null; scaleValue = Number(scaleSlider.value); update(); });
 exposure.addEventListener('input', update);
 for (const checkbox of [population,background,grid,cmbMap]) checkbox.addEventListener('change', update);
-for(const mode of ['space','sky'] as const) get(`view-${mode}`).addEventListener('click',()=>{
+function chooseView(mode:'space'|'sky') {
   viewMode=mode;
   renderer?.setMode(mode);
   get('view-space').setAttribute('aria-pressed',String(mode==='space'));
   get('view-sky').setAttribute('aria-pressed',String(mode==='sky'));
   update();
-});
+}
+for(const mode of ['space','sky'] as const) get(`view-${mode}`).addEventListener('click',()=>chooseView(mode));
 play.addEventListener('click', () => {
   if (!playing && scaleValue >= 0.9999) { scaleValue = MIN_SCALE; selectedAge = null; scaleSlider.value = String(MIN_SCALE); update(); }
   setPlaying(!playing);
@@ -137,7 +138,7 @@ function frame(now: number) {
     scaleValue = scaleFactorAtAge(selectedAge);
     scaleSlider.value = String(scaleValue);
     update();
-    if(progress>=1000) setPlaying(false);
+    if(progress>=1000) { setPlaying(false); if(viewMode!=='sky') chooseView('sky'); }
   }
   const difference=scaleValue-displayedScale;
   if(Math.abs(difference)>1e-7) {

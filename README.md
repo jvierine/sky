@@ -2,17 +2,23 @@
 
 Interactive TypeScript / WebGL cosmic history, live at **[juha.no/stars](https://juha.no/stars/)**.
 
-The observed WMAP nine-year microwave temperature map morphs into schematic matter,
-first stars and galaxy groups. Drag to orbit, scroll or pinch to zoom, and move the
+The default view is the sky from a hypothetical planet, starting at today’s measured
+Tycho-2 star positions and magnitudes. Rewind to the observed WMAP nine-year microwave
+temperature map and play forward through a schematic emergence of stars, ending at
+the catalogue sky. Drag to look around, scroll or pinch to zoom, and move the
 linear scale-factor `a` slider. Its secondary axis shows time after the Big Bang in
 Gyr, integrated from the Friedmann equation. Playback uses logarithmic age so the
 early epochs remain visible. Smooth transitions animate expansion between selections.
 
-**3D expansion** assigns illustrative depths and cluster positions to 120,530 Tycho-2
-stellar tracers and adds 900 procedural galaxy sprites. **Sky** uses measured Tycho
-directions on a celestial sphere. The canvas supports arrow keys and +/−; exposure
-adjusts visibility. **Model & sources** contains linked scientific citations and
-switches for the WMAP field, stellar population, thermal background and sky grid.
+**Planet sky** uses all 120,530 measured Tycho directions on a celestial sphere. It
+draws no synthetic galaxies or clusters. “Today” always returns to this view. The
+optional **External 3D model**, available only inside **Model & sources**, assigns
+illustrative depths and cluster positions and adds 900 galaxy tracers to demonstrate
+expansion from outside a volume. It is explicitly a separate model, not a planet sky.
+The canvas supports arrow keys and +/−; exposure adjusts visibility. Scientific
+citations and switches for WMAP, stellar populations, thermal light and the sky
+grid are in the same dialog. Controls and secondary labels use at least 14px text;
+phone layouts scroll to preserve readable type instead of shrinking controls.
 
 ## Run and deploy
 

@@ -78,5 +78,5 @@ export const epochs = [
   { name: 'First stars', short: '300m years', age: 300e6, title: 'Darkness gives way.', description: 'The first stellar populations begin to illuminate the cosmos. Tycho stars trace a schematic emergence of starlight.' },
   { name: 'Reionization', short: '800m years', age: 800e6, title: 'Islands of light.', description: 'Young stars and galaxies reshape their surroundings. Our expanding-source approximation reveals a brighter, denser sky.' },
   { name: 'Cosmic noon', short: '3b years', age: 3e9, title: 'A universe in bloom.', description: 'Galaxies are vigorously forming stars. A smaller scale factor brings the model’s sources closer and brightens their light.' },
-  { name: 'Today', short: '13.8b years', age: TODAY_YEARS, title: 'The sky we know.', description: '120,530 catalogue stars. A 2.73 K background. The present-day sky is the starting point for our journey into the past.' },
+  { name: 'Today', short: '13.8b years', age: TODAY_YEARS, title: 'The sky we know.', description: '120,530 Tycho-2 stars at their measured sky positions. A 2.73 K background. The view from a hypothetical planet today.' },
 ];

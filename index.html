@@ -25,7 +25,7 @@
         <p class="eyebrow"><span class="live-dot"></span> A JOURNEY THROUGH COSMIC TIME</p>
         <h1 id="epoch-title">The sky we know.</h1>
         <p id="epoch-description" class="description">A familiar sky, at the far end of a very long story.</p>
-        <p id="model-label" class="model-label">WMAP observations → schematic structure formation</p>
+        <p id="model-label" class="model-label">Tycho-2 sky · measured J2000 positions and Vₜ magnitudes</p>
       </section>
       <section class="readouts" aria-label="Cosmic conditions">
         <div><span class="readout-label">AGE OF THE UNIVERSE</span><strong id="age">13.8 <small>billion years</small></strong></div>
@@ -34,7 +34,7 @@
       </section>
       <div class="view-tools">
         <div class="view-caption"><span class="crosshair">＋</span><span>DRAG TO EXPLORE <span class="separator">/</span> SCROLL TO ZOOM</span><span id="fov">80°</span></div>
-        <div class="mode-switch" role="group" aria-label="View mode"><button id="view-space" aria-pressed="true">3D expansion</button><button id="view-sky" aria-pressed="false">Sky</button></div>
+
         <div class="exposure-control"><label for="exposure">EXPOSURE</label><input id="exposure" type="range" min="-3" max="3" step="0.1" value="0" /><output id="exposure-value" for="exposure">0 EV</output></div>
       </div>
       <div id="cmb-legend" class="cmb-legend"><span>WMAP 9-YEAR ILC · ΔT <span class="legend-unit">µK</span></span><div class="colour-bar"></div><div class="legend-ticks"><span>−200</span><span>0</span><span>+200</span></div><small>Microwave temperature · enhanced false colour</small></div>
@@ -54,7 +54,9 @@
     <dialog id="model-dialog">
       <div class="dialog-heading"><span class="eyebrow">BEHIND THE SKY</span><button id="close-model" class="icon-button" aria-label="Close model details">✕</button></div>
       <h2>A sky to think with.</h2>
-      <p>This is a first-order visual experiment, using today’s Tycho-2 sky as a template for earlier epochs. The 3D view assigns illustrative depths to Tycho directions and adds 900 procedural galaxy tracers. These are not measured galaxy positions or the actual ancient populations of the Milky Way’s stars.</p>
+      <p>The default planet sky view renders the measured Tycho-2 directions and V<sub>T</sub> magnitudes. At a = 1 it is the present-day catalogue sky seen from a hypothetical planet, without synthetic clusters or galaxy sprites. Rewind to see the observed WMAP microwave field fade into a schematic stellar population, ending at Tycho. Earlier populations are a visual approximation.</p>
+      <p>The optional external 3D model assigns illustrative depths and clustered positions to stellar tracers and adds 900 galaxy tracers. It demonstrates expansion from an external camera; it is not the sky seen from Earth. “Today” returns to the Tycho sky.</p>
+      <div class="mode-switch" role="group" aria-label="View mode"><button id="view-sky" aria-pressed="true">Planet sky</button><button id="view-space" aria-pressed="false">External 3D model</button></div>
       <div class="model-options">
         <label><input id="cmb-map" type="checkbox" checked /> WMAP seed field & diffuse matter <small>Observed microwave anisotropies, enhanced in false colour. The transition to 3D clusters is illustrative.</small></label>
         <label><input id="population" type="checkbox" checked /> Evolve the stellar population <small>A schematic fade-in from 150–600 million years; no stars during the dark ages.</small></label>
@@ -67,7 +69,7 @@
       <p class="fine-print">Gravitationally bound stars and galaxies do not follow cosmic expansion. This model expands all tracers together after the illustrative formation phase. The toy flux law omits stellar evolution, cosmological dimming, dust, and a true past light cone. Tycho V<sub>T</sub> magnitudes are measured; star colours are illustrative because this subset has no colour data. Coloured early points represent schematic matter, not stars.</p>
       <h3>Observed seeds, illustrative evolution</h3>
       <p>The coloured seed field is the observed WMAP nine-year ILC temperature map, in Galactic coordinates, reprojected into the viewing direction <a class="inline-cite" href="https://lambda.gsfc.nasa.gov/product/wmap/dr5/ilc_map_info.html" target="_blank" rel="noopener">[1]</a>. The display enhances ΔT over ±200 µK; these are microwave temperature differences, not visible colours or a direct matter-density measurement.</p>
-      <p>WMAP angular patches seed a repeatable 3D morph into diffuse matter, stellar tracers, and galaxy groups. The animation illustrates growth from primordial fluctuations <a class="inline-cite" href="https://arxiv.org/abs/1102.4638" target="_blank" rel="noopener">[4]</a>; it is not an N-body calculation, nor a reconstruction of which observed patch formed which galaxy. The shell-to-volume projection, cluster depths, collapse paths, and spiral glyphs are artistic choices.</p>
+      <p>WMAP angular patches seed a repeatable 3D morph into diffuse matter, stellar tracers, and galaxy groups. The animation illustrates growth from primordial fluctuations <a class="inline-cite" href="https://arxiv.org/abs/1102.4638" target="_blank" rel="noopener">[4]</a>; it is not an N-body calculation, nor a reconstruction of which observed patch formed which galaxy. The shell-to-volume projection, cluster depths, collapse paths, and galaxy glyphs are artistic choices.</p>
       <h3>Cosmology & catalogue</h3>
       <p>The expansion uses Planck 2018 base-ΛCDM values H₀ = 67.4 km/s/Mpc and Ω<sub>m</sub> = 0.315 <a class="inline-cite" href="https://arxiv.org/abs/1807.06209" target="_blank" rel="noopener">[2]</a>. The simplified flat model includes Ω<sub>r</sub> = 0.000092 and integrates the Friedmann equation to find cosmic age. The 120,530-star Tycho-2 V<sub>T</sub> &lt; 9 subset comes from WISC/AIDA, including both supplements <a class="inline-cite" href="https://archive.eso.org/ASTROM/TYC-2/docs/aa2000a.pdf" target="_blank" rel="noopener">[5]</a>.</p>
       <h3 id="references">References & data</h3>
